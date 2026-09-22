@@ -142,16 +142,51 @@ function phaseIcon(phase,side='buy'){
   const xy=pos[p]||[45,23],color=buy?(p==='LATE / CHASE'?'#d97706':'#059669'):(p==='BREAKDOWN WARNING'?'#d97706':'#dc2626');
   return '<span class="phase-cell '+(buy?'phase-buy':'phase-sell')+'"><svg class="phase-icon" viewBox="0 0 100 42" role="img" aria-label="'+(buy?'BUY':'SELL')+' phase"><path d="'+(buy?'M5 32 L18 27 L31 29 L44 20 L57 22 L70 12 L84 15 L95 6':'M5 8 L18 13 L31 11 L44 20 L57 18 L70 28 L84 25 L95 35')+'" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".68"/><path d="'+(buy?'M84 6 L95 6 L95 17':'M84 35 L95 35 L95 24')+'" fill="none" stroke="'+color+'" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="'+xy[0]+'" cy="'+xy[1]+'" r="5" fill="'+color+'" stroke="#fff" stroke-width="1.6"/></svg><span class="phase-name">'+esc(phase)+'</span></span>';
 }
+function momentEvidence(stock,side,lookback=20){
+  const empty={rows:[],label:'belum ada histori'};
+  try{
+    const cal=window.StockFlowCalibration;
+    if(!cal||!stock?.rows?.length)return empty;
+    const current=StockFlow.analyze(stock.rows,lookback);
+    const currentScore=Number(current?.score||0);
+    const bucket=x=>x<60?'50-59':x<65?'60-64':x<70?'65-69':x<75?'70-74':x<85?'75-84':'85+';
+    const horizons=[1,3,5];
+    const rows=horizons.map(h=>{
+      const wf=cal.walkForward([stock],{lookback,horizon:h,buyCostPct:BACKTEST_BUY_COST_PCT,sellCostPct:BACKTEST_SELL_COST_PCT});
+      const base=side==='buy'?wf.buy:wf.sell;
+      const target=bucket(currentScore);
+      const filtered=(wf.observations||[]).filter(o=>o.signal===(side==='buy'?'BUY':'SELL')&&o.scoreBucket===target);
+      const s=filtered.length>=3?{
+        count:filtered.length,
+        hitRate:filtered.filter(o=>Number(o.signedReturn)>0).length*100/filtered.length,
+        avgReturn:filtered.reduce((a,o)=>a+Number(o.signedReturn||0),0)/filtered.length
+      }:base;
+      return {h,count:Number(s?.count||0),hit:Number.isFinite(Number(s?.hitRate))?Number(s.hitRate):null,ret:Number.isFinite(Number(s?.avgReturn))?Number(s.avgReturn):null,matched:filtered.length>=3};
+    });
+    return {rows,label:'historical same-score bucket'};
+  }catch(e){console.warn('[MOMENT EVIDENCE]',e);return empty}
+}
+function evidenceHtml(e,side){
+  if(!e?.rows?.length)return '<span class="moment-evidence-empty">—</span>';
+  return '<span class="moment-evidence">'+e.rows.map(x=>{
+    const ret=x.ret==null?'—':fmt(x.ret,1)+'%';
+    const hit=x.hit==null?'—':fmt(x.hit,0)+'%';
+    return '<span><b>T+'+x.h+'</b> '+ret+' <i>'+hit+'</i></span>';
+  }).join('')+'</span>';
+}
 function renderMomentPareto(all,lookback=20){
   const el=$('momentPareto');if(!el)return;
   const p=momentPareto(all,lookback),buy=p.buys,sell=p.sells,n=Math.max(buy.length,sell.length,5);
+  const stockMap=new Map(all.map(s=>[s.ticker,s]));
   const rows=Array.from({length:n},(_,i)=>{
     const b=buy[i],s=sell[i];
     const bs=b?(b.buyPhase==='LATE / CHASE'?'WAIT':b.buyPhase==='EARLY BREAKOUT'?'CONFIRM':'NOW'):'—';
     const ss=s?(s.sellPhase==='PANIC / LATE EXIT'||s.sellPhase==='BREAKDOWN'?'URGENT':s.sellPhase==='BREAKDOWN WARNING'?'WARNING':'WATCH'):'—';
-    return '<tr><td>'+ (i+1)+'</td><td class="moment-stock"><b>'+(b?esc(b.ticker):'—')+'</b><small>'+(b?bs:'')+'</small></td><td class="moment-score buy-score">'+(b?fmt(b.buyScore,0):'—')+'</td><td>'+(b?phaseIcon(b.buyPhase,'buy'):'—')+'</td><td class="moment-stock"><b>'+(s?esc(s.ticker):'—')+'</b><small>'+(s?ss:'')+'</small></td><td class="moment-score sell-score">'+(s?fmt(s.sellScore,0):'—')+'</td><td>'+(s?phaseIcon(s.sellPhase,'sell'):'—')+'</td></tr>';
+    const be=b?momentEvidence(stockMap.get(b.ticker),'buy',lookback):null;
+    const se=s?momentEvidence(stockMap.get(s.ticker),'sell',lookback):null;
+    return '<tr><td>'+ (i+1)+'</td><td class="moment-stock"><b>'+(b?esc(b.ticker):'—')+'</b><small>'+(b?bs:'')+'</small></td><td class="moment-score buy-score">'+(b?fmt(b.buyScore,0):'—')+'</td><td>'+(b?phaseIcon(b.buyPhase,'buy'):'—')+'</td><td>'+(b?evidenceHtml(be,'buy'):'—')+'</td><td class="moment-stock"><b>'+(s?esc(s.ticker):'—')+'</b><small>'+(s?ss:'')+'</small></td><td class="moment-score sell-score">'+(s?fmt(s.sellScore,0):'—')+'</td><td>'+(s?phaseIcon(s.sellPhase,'sell'):'—')+'</td><td>'+(s?evidenceHtml(se,'sell'):'—')+'</td></tr>';
   }).join('');
-  el.innerHTML='<h3>⚡ Pareto Moment BUY / SELL</h3><div class="condition-guide single"><b>Fokus:</b> BUY mencari titik sebelum/awal markup; SELL mencari tanda distribusi sebelum/ketika breakdown.</div><div class="moment-legend"><span><b>NOW</b> moment aktif</span><span><b>CONFIRM</b> tunggu konfirmasi</span><span><b>WAIT</b> sudah extended</span><span><b>WATCH/WARNING</b> distribusi mulai muncul</span></div><div class="tablewrap"><table><thead><tr><th>#</th><th>BUY</th><th>Timing</th><th>Visual Phase</th><th>SELL</th><th>Timing</th><th>Visual Phase</th></tr></thead><tbody>'+rows+'</tbody></table></div><small class="moment-note">Ikon fase tetap dipertahankan sebagai pembacaan visual. Timing score adalah ranking diagnostik, bukan probabilitas keuntungan. T+1…T+5 tetap perlu dikonfirmasi dengan walk-forward historis.</small>';
+  el.innerHTML='<h3>⚡ Pareto Moment BUY / SELL</h3><div class="condition-guide single"><b>Fokus:</b> BUY mencari titik sebelum/awal markup; SELL mencari tanda distribusi sebelum/ketika breakdown.</div><div class="moment-legend"><span><b>NOW</b> moment aktif</span><span><b>CONFIRM</b> tunggu konfirmasi</span><span><b>WAIT</b> sudah extended</span><span><b>WATCH/WARNING</b> distribusi mulai muncul</span></div><div class="moment-evidence-legend"><b>T+1 / T+3 / T+5</b> = hasil historis walk-forward; angka = avg net outcome, <i>%</i> = hit rate. Jika tersedia ≥3 signal pada score bucket yang sama, bucket itu dipakai; jika tidak, agregat signal ticker dipakai.</div><div class="tablewrap"><table><thead><tr><th>#</th><th>BUY</th><th>Timing</th><th>Visual Phase</th><th>T+1 / T+3 / T+5</th><th>SELL</th><th>Timing</th><th>Visual Phase</th><th>T+1 / T+3 / T+5</th></tr></thead><tbody>'+rows+'</tbody></table></div><small class="moment-note">Ikon fase tetap dipertahankan sebagai pembacaan visual. Timing score adalah ranking diagnostik, bukan probabilitas. Evidence T+1…T+5 adalah bukti historis ticker, bukan jaminan hasil berikutnya. Untuk SELL, net outcome dibaca sebagai penurunan yang berhasil dihindari dari posisi long.</small>';
 }
 let renderSeq=0;
 function render(){
