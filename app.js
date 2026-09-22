@@ -272,39 +272,29 @@ async function loadLiveAll(){const p=provider(),to=new Date(),from=new Date(to.g
 async function loadLiveStock(){backtestTicker='';backtestSeries=null;const t=[...selectedTickers];if(t.length!==1)return loadLiveAll();const ticker=t[0];const p=provider(),to=new Date(),from=new Date(to.getTime()-364*86400000),url=`${BACKEND_URL}/stock?ticker=${encodeURIComponent(ticker)}&from=${ymd(from)}&to=${ymd(to)}&provider=${encodeURIComponent(p)}`;setLiveStatus(`Mengambil ${ticker} via ${p.toUpperCase()}...`);const res=await fetch(url,{cache:'no-store'}),j=await res.json();if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status}`);const prices=StockFlowProvider.normalize(j.prices||[]),br=j.broker||[];if(!prices.length)throw Error('OHLCV kosong');const fresh=StockFlowProvider.group(StockFlowProvider.mergeBrokerRows(prices,br));const keep=data.filter(x=>x.ticker!==ticker);data=[...keep,...fresh];brokerRows=br;selectedTickers=new Set([ticker]);refresh();render();$('status').textContent=(j.provider||p).toUpperCase();setLiveStatus(`${j.source||p} · ${ticker} · ${prices.length} hari · ${br.length} broker rows`);saveCache()}
 function stamp(sourceTime=''){const t=fmtSourceTime(sourceTime||sourceMeta.timestamp);const old=$('lastUpdate');if(old)old.textContent=t;updateSourceNameplate();return t}function appLog(source){const el=$('providerInfoText');if(el)el.textContent=source}function setLiveStatus(x){const old=$('liveStatus');if(old)old.textContent=x;const out=$('liveStatusInline');if(out)out.textContent='Data Connection · '+x;updateSourceNameplate()}
 async function autoLoad(){
-  // In AUTO mode, paint the last successful dataset immediately, then refresh
-  // it in the background. This prevents a slow/temporary provider outage from
-  // making the PWA look empty.
-  const hadCache=provider()==='auto'&&restoreCache();
+  const p=provider();
+  const hadCache=p==='auto'&&restoreCache();
+  setLiveStatus(`Mengambil data ${p==='auto'?'AUTO':'LIVE '+p.toUpperCase()}...`);
   try{
     await loadLiveStock();
   }catch(e){
-    if(provider()==='auto'&&hadCache){
-      $('status').textContent='CACHE · LIVE REFRESH FAILED';
-      setLiveStatus(`Cache lokal tetap dipakai · refresh live gagal: ${e.message}`);
+    console.error('[LIVE]',e);
+    if(p==='auto'&&hadCache){
+      $('status').textContent='CACHE';
+      setLiveStatus(`Cache lokal dipakai · live refresh gagal: ${e.message}`);
       return;
     }
-    if(provider()==='auto'&&restoreCache())return;
-    const explicit=provider()!=='auto';
-    $('status').textContent=explicit?'LIVE ERROR':'OFFLINE';
-    setLiveStatus(explicit
-      ? `LIVE ERROR · ${provider().toUpperCase()} gagal: ${e.message} · demo tidak digunakan`
-      : `Data live gagal: ${e.message} · kalkulasi lokal tetap aktif`);
-    if(explicit){
-      data=[];
-      selectedTickers=new Set();
-      refresh();
-      $('buyTable').innerHTML='<tr><td colspan="5">Tidak ada data live. Demo data dinonaktifkan untuk provider eksplisit.</td></tr>';
-      $('sellTable').innerHTML='<tr><td colspan="5">Tidak ada data live. Demo data dinonaktifkan untuk provider eksplisit.</td></tr>';
-      $('backtest').innerHTML='<div class="btlegend"><span>Backtest menunggu data live.</span></div>';
-      $('detailBuy').innerHTML='Data live belum tersedia.';
-      $('detailSell').innerHTML='Data live belum tersedia.';
+    if(p==='auto'){
+      $('status').textContent='OFFLINE';
+      setLiveStatus(`Data live gagal: ${e.message}`);
+      const el=$('momentPareto');
+      if(el)el.innerHTML='<div class="detail-placeholder">Data live belum tersedia. Periksa koneksi/provider.</div>';
       return;
     }
-    data=[];
-    selectedTickers=new Set();
-    refresh();
-    render();
+    $('status').textContent='LIVE ERROR';
+    setLiveStatus(`${p.toUpperCase()} gagal: ${e.message}`);
+    const el=$('momentPareto');
+    if(el)el.innerHTML='<div class="detail-placeholder">Data live belum tersedia untuk provider ini.</div>';
   }
 }
 $('lookback').onchange=render;
