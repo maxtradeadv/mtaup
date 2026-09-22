@@ -1,0 +1,15 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read=. main.ts"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "deploy": {
+    "runtime": {
+      "type": "dynamic",
+      "entrypoint": "main.ts"
+    }
+  },
+  "_deployVersion": "2026-09-18-donut-force-deploy"
+}
