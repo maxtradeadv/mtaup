@@ -1,13 +1,13 @@
 {
-  "name": "Stock Flow Scanner",
-  "short_name": "Stock Flow",
-  "start_url": "./",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#16a34a",
-  "description": "Accumulation and distribution stock scanner",
-  "icons": [
-    {"src":"icon-180.png?v=5","sizes":"180x180","type":"image/png","purpose":"any"}
+  "name":"Stock Flow Scanner",
+  "short_name":"Stock Flow",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#ffffff",
+  "theme_color":"#16a34a",
+  "description":"Accumulation and distribution stock scanner",
+  "icons":[
+    {"src":"icon.svg?v=6","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
   ]
 }

@@ -1,40 +1,25 @@
 # Stock Flow — Data Sources
 
-## Current prototype
+## Current provider policy
 
-The PWA is designed to consume normalized OHLCV data and optional broker-flow fields. The analysis engine is independent from the data source.
+The application consumes normalized OHLCV data and optional broker-flow fields. The analysis engine is independent from the data source.
 
-## Open-source / public sources investigated
+### Active providers
 
-### Pholenk/IDX-Dataset
+- **Daily Remote CSV** — public daily CSV used as the primary historical/market snapshot source.
+- **Yahoo Finance** — third-party historical OHLCV fallback.
 
-Repository: https://github.com/Pholenk/IDX-Dataset
+### Broker-flow limitation
 
-Provides machine-readable IDX-derived datasets in CSV and JSON, organized by index and stock ticker. The repository states that the dataset is updated daily and is licensed under ODbL 1.0, with attribution and share-alike requirements for derivative databases.
+The active providers do not provide the same per-broker detail that was previously supplied by the removed IDX Direct and Index Alpha adapters. Therefore the application must not infer broker identity or "smart money" from OHLCV alone. Broker metrics remain neutral when broker rows are unavailable.
 
-Use in Stock Flow: historical/backtest data and daily snapshots.
+### Removed providers
 
-### NeaByteLab/IDX-API
+- IDX Direct — removed because the online endpoint was not reliably accessible.
+- Index Alpha — removed because its API request quota was too restrictive for the scanner.
 
-Repository: https://github.com/NeaByteLab/IDX-API
+No API secret is embedded in the browser bundle.
 
-Open-source Deno/TypeScript data pipeline wrapping IDX market-data endpoints. Its documented modules include daily OHLC/volume, historical trading data, foreign trading, broker summary, and broker participant information.
+## Attribution
 
-Use in Stock Flow: a future server-side ingestion adapter. It should not be called directly from the browser if credentials, rate limits, or CORS make that inappropriate.
-
-## Important distinction
-
-Open-source code does not necessarily mean the underlying market data is open/public-domain. The source repositories above state that some data is derived from IDX. Stock Flow should preserve attribution/license requirements and should not assume that an open-source wrapper grants unrestricted redistribution or real-time commercial data rights.
-
-## Planned architecture
-
-PWA -> normalized data provider -> analysis engine -> ranking/backtest UI
-
-Provider adapters can later include:
-
-- open historical dataset
-- server-side IDX API wrapper
-- Yahoo Finance-compatible historical source
-- licensed real-time provider
-
-No API secret should be embedded in the browser bundle.
+The remote CSV is an IDX-derived community dataset. Its underlying market-data licensing and redistribution terms must be respected separately from the application source license.

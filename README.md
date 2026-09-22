@@ -26,7 +26,9 @@ Untuk broker detail, tahap berikutnya dapat memakai data per broker per hari: `d
 Versi awal memakai data demo dan CSV. Untuk data IDX otomatis/live, gunakan provider berlisensi atau sumber yang memang mengizinkan penggunaan aplikasi; jangan menaruh API secret di JavaScript frontend GitHub Pages.
 
 
-### V3 accuracy engine
-- Accumulation and distribution are scored independently; distribution is no longer a simple inverse of accumulation.
-- Live Index Alpha detail fetches broker summaries across the latest 20 trading sessions so persistence, divergence and rotation can use historical broker flow.
-- Signal thresholds were made slightly more sensitive on the SELL side, but should be calibrated further against out-of-sample historical results rather than tuned to a single stock.
+### Data-source policy
+- IDX Direct is removed from this repository because the online endpoint is not reliably accessible.
+- Index Alpha is removed to avoid its request quota dependency.
+- AUTO uses the public daily CSV first and Yahoo Finance historical data as fallback.
+- Broker-detail scoring is only populated when the selected data source supplies broker rows; OHLCV alone is not treated as broker-flow evidence.
+- `icon.svg` is the primary web/PWA icon; PNG 180x180 remains as the iPhone Home Screen fallback because iOS Home Screen installation is more reliable with a raster Apple touch icon.
