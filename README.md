@@ -27,8 +27,6 @@ Versi awal memakai data demo dan CSV. Untuk data IDX otomatis/live, gunakan prov
 
 
 ### Data-source policy
-- IDX Direct is removed from this repository because the online endpoint is not reliably accessible.
-- Index Alpha is removed to avoid its request quota dependency.
 - AUTO uses the public daily CSV first and Yahoo Finance historical data as fallback.
 - Broker-detail scoring is only populated when the selected data source supplies broker rows; OHLCV alone is not treated as broker-flow evidence.
-- `icon.svg` is the primary web/PWA icon; PNG 180x180 remains as the iPhone Home Screen fallback because iOS Home Screen installation is more reliable with a raster Apple touch icon.
+- `icon.svg` is the primary web/PWA icon and is referenced directly by the app manifest and favicon configuration.
