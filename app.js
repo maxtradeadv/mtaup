@@ -210,8 +210,12 @@ function phaseFor(x,side){
   return Number(a.price&&a.resistance&&a.price>a.resistance&&a.volRatio>=1.5)?'PANIC / LATE EXIT':below>0?'BREAKDOWN':Number(a.breakdown)>=55?'BREAKDOWN WARNING':Number(a.dist)>=65?'DISTRIBUTION CONFIRMED':Number(a.brokerScore)<=35?'DISTRIBUTION EARLY':'WEAKENING';
 }
 function evidenceHtml(e){
-  if(!e?.rows?.length)return '<span class="moment-evidence-empty">—</span>';
-  return '<span class="moment-evidence">'+e.rows.map(x=>'<span><b>T+'+x.h+'</b> '+(x.ret==null?'—':fmt(x.ret,1)+'%')+' <i>'+(x.hit==null?'—':fmt(x.hit,0)+'%</i></span>').join('')+'</span>';
+  if(!e||!e.rows||!e.rows.length)return '<span class="moment-evidence-empty">—</span>';
+  return '<span class="moment-evidence">'+e.rows.map(function(x){
+    const ret=x.ret==null?'—':fmt(x.ret,1)+'%';
+    const hit=x.hit==null?'—':fmt(x.hit,0)+'%';
+    return '<span><b>T+'+x.h+'</b> '+ret+' <i>'+hit+'</i></span>';
+  }).join('')+'</span>';
 }
 function brokerRotationHtml(stock){
   const rows=(stock?.rows||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date)),recent=rows.slice(-5),prev=rows.slice(-10,-5);
