@@ -1,8 +1,8 @@
 const BASE_URL='https://api.indexalpha.id';
-function apiKey(){const k=String((globalThis as any).__MTA_IA_KEY||'').trim();if(!k)throw Error('INDEX_ALPHA_API_KEY is not configured');return k}
+function apiKey(key?:string){const k=String(key||'').trim();if(!k)throw Error('INDEX_ALPHA_API_KEY is not configured');return k}
 function checkDate(d:string){if(!/^\d{8}$/.test(d))throw Error('date must be YYYYMMDD');return d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)}
-function headers(){return{Accept:'application/json',Authorization:'Bearer '+apiKey()}}
-export async function brokerSummary(ticker:string,date:string){
+function headers(){return{Accept:'application/json',Authorization:'Bearer '+apiKey(key)}}
+export async function brokerSummary(ticker:string,date:string,key?:string){
   const d=checkDate(date),p=new URLSearchParams({ticker:ticker.toUpperCase(),from:d,to:d,investor:'all',market:'RG'});
   const r=await fetch(BASE_URL+'/stocks/broker-summary?'+p,{headers:headers()});
   const b=await r.json().catch(()=>null);
