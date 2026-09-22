@@ -169,7 +169,7 @@ function buildParetoRows(all,lookback=20){
       buyScore:Number(a.acc)*.30+(brokerBuy??50)*.20+persistence*.12+rotation*.08+Number(a.trend)*.10+volumeConfirm*.10+early*.10,
       sellScore:Number(a.dist)*.30+(brokerRisk??50)*.20+persistenceRisk*.12+rotation*.08+Number(a.breakdown)*.10+volumeConfirm*.10+(100-early)*.10};
   }).filter(Boolean);
-  const buys=buildRank(buildParetoRows._rows||rows,'buy',5);
+  const buys=buildRank(rows,'buy',5);
   const sells=buildRank(rows,'sell',5);
   return {rows,buys,sells};
 }
