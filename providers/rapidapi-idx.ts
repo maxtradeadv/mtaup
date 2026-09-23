@@ -23,10 +23,12 @@ function pick(r:any,...keys:string[]){
   for(const k of keys)if(r?.[k]!==undefined&&r?.[k]!==null)return r[k];
   return undefined;
 }
-function mapBroker(r:any,ticker:string,queryDate:string){
+function mapBroker(r:any,ticker:string,queryDate=''){
   const broker=String(pick(r,'brokerCode','broker_code','netbs_broker_code','broker','code','IDFirm','idFirm')||'').trim().toUpperCase();
   if(!broker)return null;
-  const date=String(pick(r,'date','Date','tradeDate','trade_date')||queryDate).slice(0,10);
+  const rawDate=pick(r,'date','Date','tradeDate','trade_date');
+  const date=String(rawDate||queryDate).slice(0,10);
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return null;
   const buyValue=num(pick(r,'buyValue','buy_value','bval','buyVal'));
   const sellValue=Math.abs(num(pick(r,'sellValue','sell_value','sval','sellVal')));
   const buyVolume=Math.max(0,num(pick(r,'buyVolume','buy_volume','blot','buyLot','buy_lot')));
@@ -58,7 +60,7 @@ async function rapidGet(path:string,params:Record<string,string>,apiKey:string){
   try{return JSON.parse(body)}catch{throw Error(`IDX RapidAPI invalid JSON: ${body.slice(0,220).replace(/\\s+/g,' ')}`)}
 }
 
-export async function rapidBrokerSummary(ticker:string,from:string,to:string,apiKey?:string){
+export async function rapidBrokerSummary(ticker:string,from:string,to:string,apiKey?:string,strictDates=false){
   const key=String(apiKey||'').trim();
   if(!key)throw Error('IDX RapidAPI belum dikonfigurasi. Set Cloudflare secret RAPIDAPI_KEY.');
   const j=await rapidGet(`/api/market-detector/broker-summary/${encodeURIComponent(ticker)}`,{
@@ -68,5 +70,10 @@ export async function rapidBrokerSummary(ticker:string,from:string,to:string,api
     investorType:'INVESTOR_TYPE_ALL',
     from,to
   },key);
-  return records(j).map(r=>mapBroker(r,ticker,to)).filter(Boolean);
+  const rows=records(j).map(r=>mapBroker(r,ticker,strictDates?'':to)).filter(Boolean);
+  if(strictDates){
+    const dates=[...new Set(rows.map((r:any)=>r.date))];
+    if(dates.length<2)throw Error(`IDX RapidAPI returned ${dates.length} dated session(s) for ${ticker}; multi-session broker history is not available in this response.`);
+  }
+  return rows;
 }
