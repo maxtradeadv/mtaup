@@ -284,7 +284,7 @@ function saveCache(){try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:Date.
 function restoreCache(){try{const x=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');if(x?.data?.length){data=x.data;refresh();render();$('status').textContent='OFFLINE CACHE';setLiveStatus(`Cache lokal · ${data.length} saham · bukan data live`);return true}}catch(e){console.warn('[CACHE] restore failed',e)}return false}
 async function fetchMarketRangeChunked(from,to,p){
   const all=[],timestamps=[];
-  const diag={universe:0,requested:0,success:0,failed:0,empty:0,rows:0};
+  const diag={universe:0,requested:0,success:0,failed:0,empty:0,rows:0,failedTickers:[]};
   if(p==='yahoo'){
     // Cloudflare Workers Free limits one invocation to ~50 subrequests.
     // Do not send the full 949-ticker universe in one /market-range call.
@@ -307,6 +307,7 @@ async function fetchMarketRangeChunked(from,to,p){
         diag.failed+=Number(j.diagnostics.failed)||0;
         diag.empty+=Number(j.diagnostics.empty)||0;
         diag.rows+=Number(j.diagnostics.rows)||0;
+        if(Array.isArray(j.diagnostics.failedTickers)) diag.failedTickers=[...(diag.failedTickers||[]),...j.diagnostics.failedTickers];
         console.info('[YAHOO DIAGNOSTIC]',j.diagnostics);
       }
     }
@@ -338,8 +339,9 @@ async function loadLiveAll(){
   refresh();render();
   $('status').textContent=(j.provider||p).toUpperCase();
   const d=j.diagnostics;
+  const failedList=p==='yahoo'&&d?.failedTickers?.length ? [...new Set(d.failedTickers)].join(',') : '';
   const diagText=p==='yahoo'&&d
-    ? ` · universe ${d.universe} · request ${d.requested} · success ${d.success} · failed ${d.failed} · empty ${d.empty}`
+    ? ` · universe ${d.universe} · request ${d.requested} · success ${d.success} · failed ${d.failed} · empty ${d.empty}${failedList?` · failed tickers ${failedList}`:''}`
     : '';
   setLiveStatus(`${j.source||p} · ALL · ${data.length} saham · ${prices.length} baris OHLCV · tanpa broker detail${diagText}`);
   saveCache();
