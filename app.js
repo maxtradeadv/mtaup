@@ -315,4 +315,4 @@ async function autoLoad(){
 $('lookback').onchange=render;
 $('provider').onchange=()=>{info();sourceMeta={provider:provider(),timestamp:'',loading:false};updateSourceNameplate();loadSourceMeta(provider());autoLoad()};
 info();refresh();render();setTimeout(autoLoad,50);
-try{const s=localStorage.getItem(PROVIDER_KEY);if(['auto','yahoo','remote-csv','idx'].includes(s))$('provider').value=s}catch{}if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+try{const s=localStorage.getItem(PROVIDER_KEY);if(['auto','yahoo','remote-csv','idx'].includes(s))$('provider').value=s}catch{}
