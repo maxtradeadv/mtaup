@@ -283,8 +283,36 @@ async function loadSourceMeta(p=provider()){if(sourceMeta.loading)return;sourceM
 function saveCache(){try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:Date.now(),data}))}catch(e){console.warn('[CACHE] save failed',e)}}
 function restoreCache(){try{const x=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');if(x?.data?.length){data=x.data;refresh();render();$('status').textContent='OFFLINE CACHE';setLiveStatus(`Cache lokal · ${data.length} saham · bukan data live`);return true}}catch(e){console.warn('[CACHE] restore failed',e)}return false}
 async function fetchMarketRangeChunked(from,to,p){
-  const maxDays=15,all=[],timestamps=[];
+  const all=[],timestamps=[];
   const diag={universe:0,requested:0,success:0,failed:0,empty:0,rows:0};
+  if(p==='yahoo'){
+    // Cloudflare Workers Free limits one invocation to ~50 subrequests.
+    // Do not send the full 949-ticker universe in one /market-range call.
+    // Yahoo can return the full date window per ticker, so batch tickers instead.
+    const ures=await fetch(BACKEND_URL+'/universe?provider=yahoo',{cache:'no-store'});
+    const uj=await ures.json();
+    if(!ures.ok||!uj.ok||!Array.isArray(uj.data)||!uj.data.length)throw Error(uj.error||'Yahoo universe kosong');
+    const tickers=uj.data.map(x=>String(x.ticker||'').toUpperCase()).filter(Boolean);
+    const batchSize=30;
+    diag.universe=tickers.length;
+    for(let i=0;i<tickers.length;i+=batchSize){
+      const batch=tickers.slice(i,i+batchSize);
+      const url=`${BACKEND_URL}/market-range?from=${ymd(from)}&to=${ymd(to)}&provider=yahoo&tickers=${encodeURIComponent(batch.join(','))}`;
+      const res=await fetch(url,{cache:'no-store'}),j=await res.json();
+      if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status}`);
+      all.push(...(j.data||[]));
+      if(j.diagnostics){
+        diag.requested+=Number(j.diagnostics.requested)||batch.length;
+        diag.success+=Number(j.diagnostics.success)||0;
+        diag.failed+=Number(j.diagnostics.failed)||0;
+        diag.empty+=Number(j.diagnostics.empty)||0;
+        diag.rows+=Number(j.diagnostics.rows)||0;
+        console.info('[YAHOO DIAGNOSTIC]',j.diagnostics);
+      }
+    }
+    return{data:all,provider:p,sourceTimestamp:timestamps.sort().at(-1)||'',source:'',diagnostics:diag};
+  }
+  const maxDays=15;
   let cur=new Date(from);const end=new Date(to);
   while(cur<=end){
     const chunkEnd=new Date(Math.min(end.getTime(),cur.getTime()+(maxDays-1)*86400000));
@@ -292,15 +320,6 @@ async function fetchMarketRangeChunked(from,to,p){
     const res=await fetch(url,{cache:'no-store'}),j=await res.json();
     if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status}`);
     all.push(...(j.data||[]));
-    if(j.diagnostics){
-      diag.universe=Math.max(diag.universe,Number(j.diagnostics.universeCount)||0);
-      diag.requested=Math.max(diag.requested,Number(j.diagnostics.requested)||0);
-      diag.success+=Number(j.diagnostics.success)||0;
-      diag.failed+=Number(j.diagnostics.failed)||0;
-      diag.empty+=Number(j.diagnostics.empty)||0;
-      diag.rows+=Number(j.diagnostics.rows)||0;
-      console.info('[YAHOO DIAGNOSTIC]',j.diagnostics);
-    }
     if(j.sourceTimestamp)timestamps.push(j.sourceTimestamp);
     cur=new Date(chunkEnd.getTime()+86400000);
   }
