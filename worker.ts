@@ -2,7 +2,7 @@ import { yahooOhlcv } from './providers/yahoo.ts';
 import { remoteCsvRange, remoteCsvServerTimestamp } from './providers/remote-csv.ts';
 import { stockbitBrokerSummary } from './providers/stockbit-broker.ts';
 import { idxMarketRange, idxSourceTimestamp, idxStock } from './providers/idx-official.ts';
-import { rapidBrokerSummary } from './providers/rapidapi-idx.ts';
+import { rapidBrokerSummary, rapidBrokerSummaryByDates } from './providers/rapidapi-idx.ts';
 
 type Provider='auto'|'yahoo'|'remote-csv'|'stockbit'|'idx'|'rapidapi';
 interface Env { ASSETS: Fetcher; APP_ACCESS_CODE?: string; APP_SESSION_SECRET?: string; DATA_PROVIDER?: string; STOCKBIT_ACCESS_TOKEN?: string; RAPIDAPI_KEY?: string; }
