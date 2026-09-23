@@ -77,3 +77,20 @@ export async function rapidBrokerSummary(ticker:string,from:string,to:string,api
   }
   return rows;
 }
+
+export async function rapidBrokerSummaryByDates(ticker:string,dates:string[],apiKey?:string){
+  const key=String(apiKey||'').trim();
+  if(!key)throw Error('IDX RapidAPI belum dikonfigurasi. Set Cloudflare secret RAPIDAPI_KEY.');
+  const out:any[]=[];
+  const uniq=[...new Set((dates||[]).map(d=>String(d).slice(0,10)).filter(d=>/^\\d{4}-\\d{2}-\\d{2}$/.test(d)))];
+  for(let i=0;i<uniq.length;i+=3){
+    const batch=await Promise.allSettled(uniq.slice(i,i+3).map(async date=>{
+      const j=await rapidGet('/api/market-detector/broker-summary/'+encodeURIComponent(ticker),{
+        limit:'100',marketBoard:'MARKET_BOARD_ALL',transactionType:'TRANSACTION_TYPE_NET',investorType:'INVESTOR_TYPE_ALL',from:date,to:date
+      },key);
+      return records(j).map(r=>mapBroker(r,ticker,date)).filter(Boolean);
+    }));
+    batch.forEach((x)=>{if(x.status==='fulfilled')out.push(...x.value);else console.warn('[IDX RAPIDAPI SESSION]',ticker,String(x.reason))});
+  }
+  return out;
+}
