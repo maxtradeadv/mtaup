@@ -24,7 +24,7 @@ function stockbitBrokerRows(payload:any,ticker:string,date:string){
 
 export async function stockbitBrokerSummary(ticker:string,dates:string[]){
   const token=stockbitToken();if(!token)throw Error('Stockbit broker source belum dikonfigurasi. Set Cloudflare secret STOCKBIT_ACCESS_TOKEN.');
-  const unique=[...new Set(dates.map(x=>x.slice(0,10)).filter(x=>/^\\d{4}-\\d{2}-\\d{2}$/.test(x)))].slice(-10);
+  const unique=[...new Set(dates.map(x=>x.slice(0,10)).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)))].slice(-10);
   const out:any[]=[];
   for(let i=0;i<unique.length;i+=5){
     const batch=unique.slice(i,i+5).map(async date=>{
