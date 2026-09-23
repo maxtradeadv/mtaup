@@ -325,6 +325,34 @@ async function loadLiveAll(){
   setLiveStatus(`${j.source||p} · ALL · ${data.length} saham · ${prices.length} baris OHLCV · tanpa broker detail${diagText}`);
   saveCache();
 }
+async function loadLiveStock(){backtestTicker='';backtestSeries=null;const t=[...selectedTickers];if(t.length!==1)return loadLiveAll();const ticker=t[0];const p=provider(),to=new Date(),from=new Date(to.getTime()-364*86400000),url=`${BACKEND_URL}/stock?ticker=${encodeURIComponent(ticker)}&from=${ymd(from)}&to=${ymd(to)}&provider=${encodeURIComponent(p)}`;setLiveStatus(`Mengambil ${ticker} via ${p.toUpperCase()}...`);const res=await fetch(url,{cache:'no-store'}),j=await res.json();if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status}`);const prices=StockFlowProvider.normalize(j.prices||[]),br=j.broker||[];if(!prices.length)throw Error('OHLCV kosong');const fresh=StockFlowProvider.group(StockFlowProvider.mergeBrokerRows(prices,br));const keep=data.filter(x=>x.ticker!==ticker);data=[...keep,...fresh];brokerRows=br;selectedTickers=new Set([ticker]);refresh();render();$('status').textContent=(j.provider||p).toUpperCase();setLiveStatus(`${j.source||p} · ${ticker} · ${prices.length} hari · ${br.length} broker rows`);saveCache()}
+function stamp(sourceTime=''){const t=fmtSourceTime(sourceTime||sourceMeta.timestamp);const old=$('lastUpdate');if(old)old.textContent=t;updateSourceNameplate();return t}function appLog(source){const el=$('providerInfoText');if(el)el.textContent=source}function setLiveStatus(x){const old=$('liveStatus');if(old)old.textContent=x;const out=$('liveStatusInline');if(out)out.textContent='Data Connection · '+x;updateSourceNameplate()}
+async function autoLoad(){
+  const p=provider();
+  const hadCache=p==='auto'&&restoreCache();
+  setLiveStatus(`Mengambil data ${p==='auto'?'AUTO':'LIVE '+p.toUpperCase()}...`);
+  try{
+    await loadLiveStock();
+  }catch(e){
+    console.error('[LIVE]',e);
+    if(p==='auto'&&hadCache){
+      $('status').textContent='CACHE';
+      setLiveStatus(`Cache lokal dipakai · live refresh gagal: ${e.message}`);
+      return;
+    }
+    if(p==='auto'){
+      $('status').textContent='OFFLINE';
+      setLiveStatus(`Data live gagal: ${e.message}`);
+      const el=$('momentPareto');
+      if(el)el.innerHTML='<div class="detail-placeholder">Data live belum tersedia. Periksa koneksi/provider.</div>';
+      return;
+    }
+    $('status').textContent='LIVE ERROR';
+    setLiveStatus(`${p.toUpperCase()} gagal: ${e.message}`);
+    const el=$('momentPareto');
+    if(el)el.innerHTML='<div class="detail-placeholder">Data live belum tersedia untuk provider ini.</div>';
+  }
+}
 $('lookback').onchange=render;
 $('provider').onchange=()=>{info();sourceMeta={provider:provider(),timestamp:'',loading:false};updateSourceNameplate();loadSourceMeta(provider());autoLoad()};
 info();refresh();render();setTimeout(autoLoad,50);
