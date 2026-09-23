@@ -12,8 +12,9 @@ async function init(){
 async function getJson(url:string){
   const cookie=await init();
   const r=await fetch(url,{headers:{...headers,...(cookie?{Cookie:cookie}:{})}});
-  if(!r.ok)throw Error(`IDX HTTP ${r.status}`);
-  return r.json();
+  const body=await r.text();
+  if(!r.ok)throw Error(`IDX HTTP ${r.status}: ${body.slice(0,180).replace(/\\s+/g,' ')}`);
+  try{return JSON.parse(body)}catch{throw Error(`IDX invalid JSON: ${body.slice(0,180).replace(/\\s+/g,' ')}`)}
 }
 const ymd=(d:Date)=>d.toISOString().slice(0,10).replaceAll('-','');
 function days(a:string,b:string){const out:string[]=[];let d=new Date(`${a.slice(0,4)}-${a.slice(4,6)}-${a.slice(6,8)}T00:00:00Z`),e=new Date(`${b.slice(0,4)}-${b.slice(4,6)}-${b.slice(6,8)}T00:00:00Z`);for(;d<=e;d.setUTCDate(d.getUTCDate()+1))out.push(ymd(d));return out}
@@ -26,14 +27,19 @@ export async function idxStock(ticker:string,from:string,to:string){
 export async function idxMarketRange(from:string,to:string,tickers?:string[]){
   const wanted=new Set((tickers||[]).map(x=>x.toUpperCase()).filter(Boolean));
   const ds=days(from,to).slice(-35);
-  const out:any[]=[];
+  const out:any[]=[]; const errors:string[]=[];
   for(let i=0;i<ds.length;i+=3){
     const batch=await Promise.all(ds.slice(i,i+3).map(async date=>{
-      try{const j=await getJson(`${BASE}/primary/TradingSummary/GetStockSummary?length=9999&start=0&date=${date}`);return (Array.isArray(j)?j:(Array.isArray(j?.data)?j.data:Array.isArray(j?.replies)?j.replies:[])).map(mapStock)}
-      catch(e){console.warn('[IDX]',date,String(e));return []}
+      try{
+        const j=await getJson(`${BASE}/primary/TradingSummary/GetStockSummary?length=9999&start=0&date=${date}`);
+        const rows=(Array.isArray(j)?j:(Array.isArray(j?.data)?j.data:Array.isArray(j?.replies)?j.replies:[])).map(mapStock);
+        if(!rows.length) errors.push(`${date}: empty response`);
+        return rows;
+      }catch(e){errors.push(`${date}: ${String(e)}`); return []}
     }));
     for(const rows of batch)for(const r of rows)if((!wanted.size||wanted.has(r.ticker))&&r.date)out.push(r);
   }
+  if(!out.length && errors.length) throw Error(`IDX GetStockSummary failed: ${errors.slice(0,3).join(' | ')}`);
   return out;
 }
 export async function idxSourceTimestamp(){
