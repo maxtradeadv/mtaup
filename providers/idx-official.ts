@@ -1,5 +1,5 @@
 const BASE='https://www.idx.co.id';
-const headers={Accept:'application/json, text/plain, */*','Accept-Language':'id-ID,id;q=0.9,en-US;q=0.8',Referer:'https://www.idx.co.id/', 'X-Requested-With':'XMLHttpRequest','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36'};
+const headers={Accept:'application/json, text/plain, */*','Accept-Language':'id-ID,id;q=0.9,en-US;q=0.8',Referer:'https://www.idx.co.id/', 'X-Requested-With':'XMLHttpRequest','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36',Origin:'https://www.idx.co.id'};
 let session:{cookie:string;at:number}|null=null;
 async function init(){
   if(session&&Date.now()-session.at<10*60*1000)return session.cookie;
@@ -29,7 +29,7 @@ export async function idxMarketRange(from:string,to:string,tickers?:string[]){
   const out:any[]=[];
   for(let i=0;i<ds.length;i+=3){
     const batch=await Promise.all(ds.slice(i,i+3).map(async date=>{
-      try{const j=await getJson(`${BASE}/primary/TradingSummary/GetStockSummary?date=${date}`);return Array.isArray(j?.data)?j.data.map(mapStock):[]}
+      try{const j=await getJson(`${BASE}/primary/TradingSummary/GetStockSummary?length=9999&start=0&date=${date}`);return (Array.isArray(j)?j:(Array.isArray(j?.data)?j.data:Array.isArray(j?.replies)?j.replies:[])).map(mapStock)}
       catch(e){console.warn('[IDX]',date,String(e));return []}
     }));
     for(const rows of batch)for(const r of rows)if((!wanted.size||wanted.has(r.ticker))&&r.date)out.push(r);
