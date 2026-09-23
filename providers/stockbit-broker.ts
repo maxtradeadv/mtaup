@@ -1,8 +1,8 @@
 const STOCKBIT_BASE='https://exodus.stockbit.com';
 
-function stockbitToken(){return (envGet('STOCKBIT_ACCESS_TOKEN')||'').trim()}
+function stockbitToken(raw?:string){return (raw||'').trim()}
 
-function stockbitHeaders(){const token=stockbitToken();if(!token)throw Error('Stockbit broker source belum dikonfigurasi. Set Cloudflare secret STOCKBIT_ACCESS_TOKEN.');return {Accept:'application/json','Authorization':`Bearer ${token}`,'Origin':'https://stockbit.com','Referer':'https://stockbit.com/','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36'}}
+function stockbitHeaders(raw?:string){const token=stockbitToken(raw);if(!token)throw Error('Stockbit broker source belum dikonfigurasi. Set Cloudflare secret STOCKBIT_ACCESS_TOKEN.');return {Accept:'application/json','Authorization':`Bearer ${token}`,'Origin':'https://stockbit.com','Referer':'https://stockbit.com/','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36'}}
 
 function num(v:any){const n=Number(v);return Number.isFinite(n)?n:0}
 
@@ -22,14 +22,14 @@ function stockbitBrokerRows(payload:any,ticker:string,date:string){
   return [...map.values()];
 }
 
-export async function stockbitBrokerSummary(ticker:string,dates:string[]){
-  const token=stockbitToken();if(!token)throw Error('Stockbit broker source belum dikonfigurasi. Set Cloudflare secret STOCKBIT_ACCESS_TOKEN.');
+export async function stockbitBrokerSummary(ticker:string,dates:string[],rawToken?:string){
+  const token=stockbitToken(rawToken);if(!token)throw Error('Stockbit broker source belum dikonfigurasi. Set Cloudflare secret STOCKBIT_ACCESS_TOKEN.');
   const unique=[...new Set(dates.map(x=>x.slice(0,10)).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)))].slice(-10);
   const out:any[]=[];
   for(let i=0;i<unique.length;i+=5){
     const batch=unique.slice(i,i+5).map(async date=>{
       const q=new URLSearchParams({transaction_type:'TRANSACTION_TYPE_NET',market_board:'MARKET_BOARD_REGULER',investor_type:'INVESTOR_TYPE_ALL',limit:'100',from:date,to:date});
-      const res=await fetch(`${STOCKBIT_BASE}/marketdetectors/${encodeURIComponent(ticker.toUpperCase())}?${q.toString()}`,{headers:stockbitHeaders()});
+      const res=await fetch(`${STOCKBIT_BASE}/marketdetectors/${encodeURIComponent(ticker.toUpperCase())}?${q.toString()}`,{headers:stockbitHeaders(token)});
       if(res.status===401||res.status===403)throw Error(`Stockbit broker authentication failed (HTTP ${res.status}). Refresh STOCKBIT_ACCESS_TOKEN.`);
       if(!res.ok)throw Error(`Stockbit broker HTTP ${res.status}`);
       const payload=await res.json();
