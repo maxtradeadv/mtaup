@@ -43,7 +43,7 @@ const valid=(x:string|null)=>!!x&&/^\d{8}$/.test(x);
 const cache=new Map<string,{at:number;data:any[]}>();
 async function range(a:string,b:string,p:Provider,ts=ytickers,names?:Map<string,string>,diag?:any){
   const key=`${p}:${a}:${b}:${ts.join(',')}`,hit=cache.get(key);
-  if(hit&&Date.now()-hit.at<300000){if(diag&&p==='yahoo')Object.assign(diag,{requested:ts.length,cached:true,rows:hit.data.length});return hit.data;}
+  if(hit&&Date.now()-hit.at<300000){if(diag&&p==='yahoo'){const present=new Set(hit.data.map((r:any)=>String(r.ticker||'').toUpperCase()).filter(Boolean));const failedTickers=ts.filter(t=>!present.has(String(t).toUpperCase()));Object.assign(diag,{requested:ts.length,cached:true,success:present.size,empty:0,failed:failedTickers.length,failedTickers:failedTickers.slice(0,20),rows:hit.data.length});}return hit.data;}
   let d:any[]=[];
   if(p==='yahoo'){
     const jobs=ts.map(t=>({ticker:t,job:yahooOhlcv(t,a,b,names?.get(t.toUpperCase()))}));
