@@ -60,8 +60,7 @@ async function range(a:string,b:string,p:Provider,ts=ytickers,names?:Map<string,
 async function stock(t:string,a:string,b:string,p:Provider){
   const ticker=t.toUpperCase();
   const prices=p==='yahoo'?await yahooOhlcv(ticker,a,b):p==='idx'?await idxStock(ticker,a,b):await remoteCsvRange(a,b,[ticker]);
-  let broker:any[]=[];)(\d{2})(\d{2})$/,'$1-$2-$3'));
-  }
+  const broker:any[]=[];
   return {ticker,from:a,to:b,prices,broker};
 }
 
