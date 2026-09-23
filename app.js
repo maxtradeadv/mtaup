@@ -196,12 +196,7 @@ function momentEvidence(stock,side,lookback=20){
     })};
   }catch{return {rows:[]}}
 }
-function phaseIcon(phase,side='buy'){
-  const p=String(phase||'').toUpperCase(),buy=side==='buy';
-  const pos={'PRE-ACCUMULATION':[18,30],'ABSORPTION':[31,18],'EARLY BREAKOUT':[45,23],'MARKUP':[58,7],'LATE / CHASE':[69,10],'DISTRIBUTION EARLY':[69,10],'DISTRIBUTION CONFIRMED':[72,13],'BREAKDOWN WARNING':[76,20],'BREAKDOWN':[80,27],'PANIC / LATE EXIT':[82,31]};
-  const xy=pos[p]||[45,23],color=buy?(p==='LATE / CHASE'?'#d97706':'#059669'):(p==='BREAKDOWN WARNING'?'#d97706':'#dc2626');
-  return '<span class="phase-cell '+(buy?'phase-buy':'phase-sell')+'"><svg class="phase-icon" viewBox="0 0 100 42" role="img" aria-label="'+(buy?'BUY':'SELL')+' phase"><path d="'+(buy?'M5 32 L18 27 L31 29 L44 20 L57 22 L70 12 L84 15 L95 6':'M5 8 L18 13 L31 11 L44 20 L57 18 L70 28 L84 25 L95 35')+'" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".68"/><path d="'+(buy?'M84 6 L95 6 L95 17':'M84 35 L95 35 L95 24')+'" fill="none" stroke="'+color+'" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="'+xy[0]+'" cy="'+xy[1]+'" r="5" fill="'+color+'" stroke="#fff" stroke-width="1.6"/></svg><span class="phase-name">'+esc(phase)+'</span></span>';
-}
+
 function timingState(x,side){if(side==='buy')return x.buyPhase==='LATE / CHASE'?'WAIT':x.buyPhase==='EARLY BREAKOUT'?'CONFIRM':'NOW';return x.sellPhase==='PANIC / LATE EXIT'||x.sellPhase==='BREAKDOWN'?'URGENT':x.sellPhase==='BREAKDOWN WARNING'?'WARNING':'WATCH'}
 function phaseFor(x,side){
   const a=x.a;
