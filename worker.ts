@@ -63,7 +63,7 @@ async function stock(t:string,a:string,b:string,p:Provider){
   let broker:any[]=[];
   if(p==='stockbit'){
     const dates=[...new Set(prices.map((r:any)=>String(r.date||'').slice(0,10)).filter(Boolean))].sort().slice(-10);
-    broker=await stockbitBrokerSummary(ticker,dates);
+    broker=await stockbitBrokerSummary(ticker,dates,envGet('STOCKBIT_ACCESS_TOKEN'));
   }
   return {ticker,from:a,to:b,prices,broker};
 }
