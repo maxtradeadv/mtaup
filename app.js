@@ -214,10 +214,25 @@ function evidenceHtml(e){
 }
 function brokerRotationHtml(stock){
   const rows=(stock?.rows||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date)),recent=rows.slice(-5),prev=rows.slice(-10,-5);
-  if(!recent.some(r=>Array.isArray(r.brokers)&&r.brokers.length))return '<div class="rotation-empty">Broker rotation: <b>NOT AVAILABLE</b> · provider ALL tidak membawa broker detail.</div>';
+  if(!recent.some(r=>Array.isArray(r.brokers)&&r.brokers.length))return '<div class="rotation-empty">Broker Rotation: <b>NOT AVAILABLE</b> · broker detail belum tersedia untuk session yang berbeda.</div>';
   const calc=arr=>{const m={};arr.forEach(r=>(r.brokers||[]).forEach(x=>{const id=String(x.broker||x.code||'').trim();if(id)m[id]=(m[id]||0)+Number(x.buyValue||0)-Number(x.sellValue||0)}));return m};
   const cur=calc(recent),old=calc(prev),ids=[...new Set([...Object.keys(cur),...Object.keys(old)])];
   return '<div class="rotation-row">'+ids.map(id=>({id,delta:(cur[id]||0)-(old[id]||0)})).sort((x,y)=>Math.abs(y.delta)-Math.abs(x.delta)).slice(0,6).map(x=>'<span><b>'+esc(x.id)+'</b> '+(x.delta>=0?'↑':'↓')+(Math.abs(x.delta)>0?'':'·')+'</span>').join('')+'</div>';
+}
+function brokerRotationAllHtml(stocks){
+  const rows=[];
+  (stocks||[]).forEach(s=>(s.rows||[]).forEach(r=>{
+    if(Array.isArray(r.brokers)&&r.brokers.length)rows.push(r);
+  }));
+  const dates=[...new Set(rows.map(r=>r.date))].sort();
+  if(dates.length<2)return '<div class="rotation-empty">Broker Rotation: <b>menunggu broker detail</b> · RapidAPI belum menyediakan ≥2 session broker yang tervalidasi.</div>';
+  const recentDates=new Set(dates.slice(-5)),prevDates=new Set(dates.slice(-10,-5));
+  const calc=ds=>{const m={};rows.filter(r=>ds.has(r.date)).forEach(r=>(r.brokers||[]).forEach(x=>{
+    const id=String(x.broker||x.code||'').trim();if(id)m[id]=(m[id]||0)+Number(x.buyValue||0)-Number(x.sellValue||0);
+  }));return m};
+  const cur=calc(recentDates),old=calc(prevDates);
+  const ids=[...new Set([...Object.keys(cur),...Object.keys(old)])];
+  return '<div class="rotation-row">'+ids.map(id=>({id,delta:(cur[id]||0)-(old[id]||0)})).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,8).map(x=>'<span><b>'+esc(x.id)+'</b> '+(x.delta>=0?'↑':'↓')+'</span>').join('')+'</div>';
 }
 function renderMomentPareto(all,lookback=20){
   const el=$('momentPareto');if(!el)return;
@@ -227,7 +242,7 @@ function renderMomentPareto(all,lookback=20){
     const primary=side==='buy'?a.acc:a.dist,broker=br?(side==='buy'?a.brokerScore:100-a.brokerScore):null;
     return '<tr class="moment-row" data-ticker="'+esc(x.stock.ticker)+'" data-zone="'+side+'"><td>'+ (i+1)+'</td><td><b>'+esc(x.stock.ticker)+'</b><small>'+tim+'</small></td><td><b>'+fmt(primary,0)+'</b></td><td>'+(broker==null?'—':fmt(broker,0))+'</td><td>'+fmt(side==='buy'?x.broker?.persistence5:x.broker?.persistence5,0)+'</td><td>'+fmt(score,0)+'</td><td>'+phaseIcon(phase,side)+'</td><td>'+evidenceHtml(ev)+'</td></tr>';
   }).join('');
-  const rotation=all.length===1?brokerRotationHtml(all[0]):'<div class="rotation-empty">Broker Rotation: <b>menunggu broker detail</b> · ALL market OHLCV tidak cukup untuk mengidentifikasi broker.</div>';
+  const rotation=all.length===1?brokerRotationHtml(all[0]):brokerRotationAllHtml(all);
   const detail=all.length===1?renderStockDetail(all[0],lookback):'<div class="detail-placeholder">Klik saham pada BUY/SELL untuk membuka detail broker, timing, dan risk.</div>';
   el.innerHTML='<div class="mta-title"><div><span class="eyebrow">MAX TRADE ADVICE</span><h2>ALL STOCK SCANNER</h2></div><div class="mta-state">'+esc(provider().toUpperCase())+'</div></div><div class="scanner-grid"><section><h3>BUY PARETO</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th><th>T+1…T+5</th></tr></thead><tbody>'+list(buys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th><th>T+1…T+5</th></tr></thead><tbody>'+list(sells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail"><h3>STOCK DETAIL</h3>'+detail+'</section><small class="moment-note">Pareto = multi-objective frontier: strength, broker evidence, persistence/rotation, price/volume confirmation, trend dan timing. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
   el.querySelectorAll('.moment-row').forEach(row=>row.onclick=()=>{const t=row.dataset.ticker;const z=row.dataset.zone;selectedTickers=new Set([t]);$('ticker').value=t;if($('tickerSearch'))$('tickerSearch').value=t;render()});
