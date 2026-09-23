@@ -98,6 +98,15 @@ export default {async fetch(req:Request,env:Env){runtimeEnv=env;const u=new URL(
   if(u.pathname==='/auth/login'&&req.method==='POST'){const code=(await req.formData()).get('code');const codes=accessCodes();if(!codes.length)return new Response('Private access is not configured. Set Cloudflare secret APP_ACCESS_CODE.',{status:503});const key=clientKey(req),now=Date.now(),rec=failedLogins.get(key);if(rec&&now<rec.resetAt&&rec.count>=5)return loginPage('Terlalu banyak percobaan. Coba lagi beberapa menit.');if(!codes.includes(String(code||'').trim())){const next=rec&&now<rec.resetAt?{count:rec.count+1,resetAt:rec.resetAt}:{count:1,resetAt:now+10*60*1000};failedLogins.set(key,next);return loginPage('Security code salah.')}failedLogins.delete(key);const token=await makeSession();if(!token)return new Response('Session configuration error',{status:503});return new Response(null,{status:303,headers:{Location:'/', 'Set-Cookie':`sf_session=${token}; Max-Age=${Math.floor(SESSION_TTL_MS/1000)}; Path=/; HttpOnly; Secure; SameSite=Lax`,'Cache-Control':'no-store'}})}
   if(u.pathname==='/auth/logout')return new Response(null,{status:303,headers:{Location:'/', 'Set-Cookie':'sf_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax','Cache-Control':'no-store'}});
   if(u.pathname==='/health'){const p=providerOf(null);return json({ok:true,provider:p,accessConfigured:!!envGet(ACCESS_CODE_ENV)?.trim(),sessionConfigured:!!envGet(SESSION_SECRET_ENV)?.trim(),sources:{idx:'Official IDX public endpoints via IDX-API reverse-engineered wrapper',remoteCsv:'Community daily CSV (IDX-derived via imq21)',yahoo:'Yahoo Finance (third-party historical)',}})}
+  // Service worker must be reachable without auth so browser/iOS can update it.
+  if(u.pathname==='/sw.js'){
+    const r=await file('/sw.js',req);
+    const h=new Headers(r.headers);
+    h.set('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
+    h.set('CDN-Cache-Control','no-store');
+    h.set('Pragma','no-cache');
+    return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h});
+  }
   const guard=await authGuard(req);if(guard)return guard;
   if(files[u.pathname])return file(u.pathname,req);
   if(u.pathname==='/source-meta'){const requested=providerOf(u.searchParams.get('provider'));let sourceTimestamp='';if(requested==='idx'){sourceTimestamp=await idxSourceTimestamp()}else if(requested==='yahoo'){try{const r=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EJKSE?range=5d&interval=1d',{headers:{Accept:'application/json','User-Agent':'Mozilla/5.0'}});if(r.ok){const j=await r.json() as any;const ts=j?.chart?.result?.[0]?.meta?.regularMarketTime;if(ts)sourceTimestamp=new Date(Number(ts)*1000).toISOString()}}catch(e){console.warn('[YAHOO META]',String(e))}}return json({ok:true,provider:requested,source:requested==='remote-csv'||requested==='auto'?'Community daily CSV (IDX-derived via imq21; not official IDX API)':requested==='idx'?'Official IDX API':'Yahoo Finance (third-party historical)',sourceTimestamp})}
