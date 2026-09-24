@@ -1,10 +1,10 @@
-const CACHE='stock-flow-v39';
+const CACHE='stock-flow-v40';
 const ASSETS=[
   './styles.css?v=20260923d',
   './analysis.js?v=20260923d',
-  './data-provider.js?v=20260923d',
+  './data-provider.js?v=20260924a',
   './calibration.js?v=20260923d',
-  './app.js?v=20260924c',
+  './app.js?v=20260924d',
   './manifest.webmanifest?v=10',
   './icon.svg?v=10',
   './icon-180.png?v=10'
