@@ -66,7 +66,7 @@ async function stock(t:string,a:string,b:string,p:Provider){
 
 let fundamentalCache:{at:number;data:any[]}|null=null;
 function htmlText(s:string){
-  return s.replace(/<script[\\s\\S]*?<\\/script>/gi,'').replace(/<style[\\s\\S]*?<\\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\\s+/g,' ').trim();
+  return s.replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\\s+/g,' ').trim();
 }
 function fundamentalNumber(s:string){
   const v=Number(String(s||'').replace(/,/g,'').replace(/%/g,'').trim());
