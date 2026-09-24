@@ -162,8 +162,11 @@ function buildParetoRows(all,lookback=20){
     const volumeConfirm=Number(a.volRatio)>=1?Math.min(100,50+Number(a.volRatio-1)*35):Math.max(0,50-Number(1-a.volRatio)*35);
     const early=100-Math.min(100,Number(a.chasePenalty||0));
     const persistenceRisk=100-persistence;
-    const buyEligible=a.signal==='BUY'||a.pattern==='ABSORPTION'||a.pattern==='QUIET ACCUMULATION'||Number(a.acc)>=55;
-    const sellEligible=a.signal==='SELL'||a.pattern==='DISTRIBUTION'||a.pattern==='BREAKDOWN RISK'||Number(a.dist)>=55;
+    // Each ticker belongs to exactly one side. Explicit BUY/SELL signals win;
+    // NEUTRAL is assigned to the stronger of accumulation vs distribution so
+    // the same ticker can never appear in both tables.
+    const buyEligible=a.signal==='BUY'||(a.signal==='NEUTRAL'&&Number(a.acc)>=Number(a.dist));
+    const sellEligible=a.signal==='SELL'||(a.signal==='NEUTRAL'&&Number(a.dist)>Number(a.acc));
     return {stock:s,a,b,brokerAvailable,
       buyEligible,sellEligible,
       objectives:{acc:Number(a.acc),brokerScore:brokerBuy??50,persistence,rotation,trend:Number(a.trend),volumeConfirm,early,
