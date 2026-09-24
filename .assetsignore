@@ -1,0 +1,11 @@
+.git/**
+.wrangler/**
+worker.ts
+wrangler.json
+wrangler.jsonc
+*.md
+LICENSE
+NOTICE.md
+package.json
+package-lock.json
+node_modules/**
