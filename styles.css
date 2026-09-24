@@ -97,3 +97,14 @@
   .moment-pareto .phase-icon{width:34px!important;height:20px!important;flex:0 0 34px}
   .fundamental-dot{width:9px;height:9px}
 }
+
+/* iPhone Pareto: restore phase label and slightly larger readable type */
+@media(max-width:650px){
+  .moment-pareto th{font-size:9.5px}
+  .moment-pareto td{font-size:9.5px;padding:8px 2px}
+  .moment-pareto td b{font-size:11.5px}
+  .moment-pareto .moment-row small{font-size:7px}
+  .moment-pareto .phase-cell{gap:2px;justify-content:center;white-space:normal}
+  .moment-pareto .phase-icon{width:24px!important;height:18px!important;flex:0 0 24px}
+  .moment-pareto .phase-name{display:block;min-width:0;font-size:6.5px;line-height:1.05;text-align:left;overflow:hidden;text-overflow:ellipsis}
+}
