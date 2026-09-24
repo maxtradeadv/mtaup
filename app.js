@@ -331,7 +331,7 @@ async function fetchMarketRangeChunked(from,to,p){
   return{data:all,provider:p,sourceTimestamp:timestamps.sort().at(-1)||'',source:'',diagnostics:diag};
 }
 async function loadLiveAll(){
-  const p=provider(),to=new Date(),from=new Date(to.getTime()-34*86400000),
+  const p=provider(),to=new Date(),from=new Date(to.getTime()-364*86400000),
     label=p==='auto'?'Daily Remote CSV → Yahoo → Cache':p.toUpperCase();
   setLiveStatus(`Mengambil ALL via ${label}...`);
   const j=await fetchMarketRangeChunked(from,to,p);
