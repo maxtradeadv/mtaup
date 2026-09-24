@@ -182,7 +182,7 @@ function buildRank(rows,side,limit){
     return bf-af || b[scoreKey]-a[scoreKey];
   }).slice(0,limit);
 }
-function momentEvidence(stock,side,lookback=20){
+function momentEvidence(stock,side,lookback=20,universe=null){
   if(!stock?.rows?.length||!window.StockFlowCalibration)return {rows:[]};
   try{
     const a=StockFlow.analyze(stock.rows,lookback),bucket=x=>x<60?'50-59':x<65?'60-64':x<70?'65-69':x<75?'70-74':x<85?'75-84':'85+';
@@ -254,12 +254,12 @@ function momentumHtml(stock,lookback){
   return '<div class="momentum-confirmation"><div class="momentum-title"><b>MOMENTUM CONFIRMATION</b><span class="'+cls+'">'+esc(m.status)+'</span></div><div class="momentum-grid"><div><small>MACD</small><b>'+fmt(m.macd,2)+'</b></div><div><small>Histogram</small><b>'+fmt(m.histogram,2)+' '+(m.histogramRising?'↑':'↓')+'</b></div><div><small>Hist Δ</small><b>'+fmt(m.histogramDelta,2)+'</b></div><div><small>Vol / SMA10</small><b>'+fmt(m.volumeSmaRatio,2)+'×</b></div><div><small>Momentum</small><b>'+fmt(m.momentum,0)+'</b></div><div><small>Participation</small><b>'+fmt(m.participation,0)+'</b></div></div><small>Confirmation '+fmt(m.confirmation,0)+' · '+(m.earlyRecovery?'Momentum recovery · increasing participation':'MACD + volume confirmation layer')+'</small></div>';
 }
 function renderStockDetail(stock,lookback){
-  const a=StockFlow.analyze(stock.rows,lookback),b=a.broker||{},eBuy=momentEvidence(stock,'buy',lookback),eSell=momentEvidence(stock,'sell',lookback);
+  const a=StockFlow.analyze(stock.rows,lookback),b=a.broker||{},eBuy=momentEvidence(stock,'buy',lookback,data),eSell=momentEvidence(stock,'sell',lookback,data);
   const brokerRows=(stock.rows||[]).slice(-5).flatMap(r=>(r.brokers||[]).map(x=>({date:r.date,id:String(x.broker||x.code||''),net:Number(x.buyValue||0)-Number(x.sellValue||0)}))).filter(x=>x.id);
   const leaders=brokerRows.reduce((m,x)=>(m[x.id]=(m[x.id]||0)+x.net,m),{}); const ids=Object.entries(leaders).sort((a,z)=>Math.abs(z[1])-Math.abs(a[1])).slice(0,5);
   const timing=(e,side)=>e.rows.map(x=>'<div><b>T+'+x.h+'</b><span class="timingbar"><i style="width:'+Math.max(4,Math.min(100,50+(x.ret||0)*8))+'%"></i></span><em>'+(x.ret==null?'—':fmt(x.ret,1)+'%')+' · '+(x.hit==null?'—':fmt(x.hit,0)+'%')+'</em></div>').join('');
-  const risk=[1,2,3,4,5].map(h=>{const d=momentEvidence(stock,'sell',lookback).rows.find(x=>x.h===h);const r=a.breakdown+(d?.ret!=null&&d.ret>0?0:10);return '<div><b>T+'+h+'</b><span class="risk-pill '+(r<35?'low':r<60?'medium':'high')+'">'+(r<35?'LOW':r<60?'MEDIUM':'HIGH')+'</span></div>'}).join('');
-  return '<div class="stock-detail-head"><b>'+esc(a.ticker||stock.ticker)+'</b><span>Price '+fmt(a.price,0)+'</span></div>+momentumHtml(stock,lookback)<div class="detail-block"><h4>Broker Accumulation</h4><div class="broker-bars">'+(b.available&&ids.length?ids.map(x=>'<span><b>'+esc(x[0])+'</b><i>'+(x[1]>=0?'+++++++ ↑':'--- ↓')+'</i></span>').join(''):'<small>Broker detail tidak tersedia pada source ini.</small>')+'</div></div><div class="detail-metrics"><div><small>Accumulation</small><b>'+fmt(a.acc,0)+'</b></div><div><small>Distribution</small><b>'+fmt(a.dist,0)+'</b></div><div><small>Broker Persist</small><b>'+(b.available?fmt(b.persistence5,0):'—')+'</b></div><div><small>Rotation</small><b>'+(b.available?fmt(b.rotation,0):'—')+'</b></div></div><div class="timing-grid"><div><h4>TIMING BUY</h4>'+timing(eBuy,'buy')+'</div><div><h4>DISTRIBUTION RISK</h4>'+risk+'</div></div>';
+  const risk=[1,2,3,4,5].map(h=>{const d=eSell.rows.find(x=>x.h===h);const r=a.breakdown+(d?.ret!=null&&d.ret>0?0:10);return '<div><b>T+'+h+'</b><span class="risk-pill '+(r<35?'low':r<60?'medium':'high')+'">'+(r<35?'LOW':r<60?'MEDIUM':'HIGH')+'</span></div>'}).join('');
+  return '<div class="stock-detail-head"><b>'+esc(a.ticker||stock.ticker)+'</b><span>Price '+fmt(a.price,0)+'</span></div>'+momentumHtml(stock,lookback)+'<div class="detail-block"><h4>Broker Accumulation</h4><div class="broker-bars">'+(b.available&&ids.length?ids.map(x=>'<span><b>'+esc(x[0])+'</b><i>'+(x[1]>=0?'+++++++ ↑':'--- ↓')+'</i></span>').join(''):'<small>Broker detail tidak tersedia pada source ini.</small>')+'</div></div><div class="detail-metrics"><div><small>Accumulation</small><b>'+fmt(a.acc,0)+'</b></div><div><small>Distribution</small><b>'+fmt(a.dist,0)+'</b></div><div><small>Broker Persist</small><b>'+(b.available?fmt(b.persistence5,0):'—')+'</b></div><div><small>Rotation</small><b>'+(b.available?fmt(b.rotation,0):'—')+'</b></div></div><div class="timing-grid"><div><h4>TIMING BUY</h4>'+timing(eBuy,'buy')+'</div><div><h4>DISTRIBUTION RISK</h4>'+risk+'</div></div>';
 }
 let renderSeq=0;
 function render(){
