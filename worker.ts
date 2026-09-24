@@ -66,7 +66,7 @@ async function stock(t:string,a:string,b:string,p:Provider){
 
 let fundamentalCache:{at:number;data:any[]}|null=null;
 function htmlText(s:string){
-  return s.replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\\s+/g,' ').trim();
+  return s.replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\s+/g,' ').trim();
 }
 function fundamentalNumber(s:string){
   const v=Number(String(s||'').replace(/,/g,'').replace(/%/g,'').trim());
@@ -78,11 +78,11 @@ async function fundamentalList(){
   if(!res.ok)throw Error('Fundamental source HTTP '+res.status);
   const html=await res.text();
   const rows:any[]=[];
-  const trRe=/<tr\\b[^>]*>([\\s\\S]*?)<\\/tr>/gi;
+  const trRe=/<tr\b[^>]*>([\\s\\S]*?)<\\/tr>/gi;
   let m;
   while((m=trRe.exec(html))){
     const cells:string[]=[];
-    const tdRe=/<t[dh]\\b[^>]*>([\\s\\S]*?)<\\/t[dh]>/gi;
+    const tdRe=/<t[dh]\b[^>]*>([\\s\\S]*?)<\\/t[dh]>/gi;
     let z;
     while((z=tdRe.exec(m[1])))cells.push(htmlText(z[1]));
     if(cells.length<15)continue;
