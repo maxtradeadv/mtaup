@@ -238,7 +238,7 @@ function renderMomentPareto(all,lookback=20){
   const el=$('momentPareto');if(!el)return;
   const {rows,buys,sells}=buildParetoRows(all,lookback),map=new Map(rows.map(x=>[x.stock.ticker,x])),n=Math.max(buys.length,sells.length,3);
   const list=(arr,side)=>arr.map((x,i)=>{
-    const a=x.a,br=x.brokerAvailable,score=side==='buy'?x.buyScore:x.sellScore,phase=phaseFor(x,side),ev=momentEvidence(x.stock,side,lookback),tim=timingState({...x,buyPhase:side==='buy'?phase:'',sellPhase:side==='sell'?phase:''},side);
+    const a=x.a,br=x.brokerAvailable,score=side==='buy'?x.buyScore:x.sellScore,phase=phaseFor(x,side),ev=momentEvidence(x.stock,side,lookback,all),tim=timingState({...x,buyPhase:side==='buy'?phase:'',sellPhase:side==='sell'?phase:''},side);
     const primary=side==='buy'?a.acc:a.dist,broker=br?(side==='buy'?a.brokerScore:100-a.brokerScore):null;
     return '<tr class="moment-row" data-ticker="'+esc(x.stock.ticker)+'" data-zone="'+side+'"><td>'+ (i+1)+'</td><td><b>'+esc(x.stock.ticker)+'</b><small>'+tim+'</small></td><td><b>'+fmt(primary,0)+'</b></td><td>'+(broker==null?'—':fmt(broker,0))+'</td><td>'+fmt(side==='buy'?x.broker?.persistence5:x.broker?.persistence5,0)+'</td><td>'+fmt(score,0)+'</td><td>'+phaseIcon(phase,side)+'</td><td>'+evidenceHtml(ev)+'</td></tr>';
   }).join('');
