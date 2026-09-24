@@ -160,7 +160,7 @@ function buildParetoRows(all,lookback=20){
     const volumeConfirm=Number(a.volRatio)>=1?Math.min(100,50+Number(a.volRatio-1)*35):Math.max(0,50-Number(1-a.volRatio)*35);
     const early=100-Math.min(100,Number(a.chasePenalty||0));
     const persistenceRisk=100-persistence;
-    const buyEligible=a.signal==='BUY'||a.pattern==='ABSORPTION'||a.pattern==='QUIET ACCUMULATION'||(Number(a.acc)>=55&&Number(a.brokerScore)>=60&&brokerAvailable);
+    const buyEligible=a.signal==='BUY'||a.pattern==='ABSORPTION'||a.pattern==='QUIET ACCUMULATION'||Number(a.acc)>=55;
     const sellEligible=a.signal==='SELL'||a.pattern==='DISTRIBUTION'||a.pattern==='BREAKDOWN RISK'||Number(a.dist)>=55;
     return {stock:s,a,b,brokerAvailable,
       buyEligible,sellEligible,
