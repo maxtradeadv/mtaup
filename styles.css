@@ -18,3 +18,37 @@
 .fundamental-dot.red{background:#dc2626}
 .fundamental-dot.pending{background:#cbd5e1}
 .moment-pareto th:first-child,.moment-pareto td:first-child{text-align:center;width:28px;padding-left:4px;padding-right:4px}
+
+/* iPhone Pareto fit: keep scanner tables inside the viewport without horizontal scroll */
+@media(max-width:650px){
+  .mta-dashboard{overflow:hidden}
+  .scanner-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .scanner-grid section{width:100%;min-width:0;overflow:hidden}
+  .scanner-grid .tablewrap{width:100%;max-width:100%;overflow:hidden}
+  .moment-pareto table{
+    width:100%;
+    min-width:0 !important;
+    max-width:100%;
+    table-layout:fixed;
+  }
+  .moment-pareto th,.moment-pareto td{
+    padding:7px 3px;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .moment-pareto th{font-size:7px;letter-spacing:-.02em}
+  .moment-pareto td{font-size:8px}
+  .moment-pareto td b{font-size:9px}
+  .moment-pareto th:first-child,.moment-pareto td:first-child{width:18px;padding-left:2px;padding-right:2px}
+  .moment-pareto th:nth-child(2),.moment-pareto td:nth-child(2){width:24%}
+  .moment-pareto th:nth-child(3),.moment-pareto td:nth-child(3){width:11%}
+  .moment-pareto th:nth-child(4),.moment-pareto td:nth-child(4){width:13%}
+  .moment-pareto th:nth-child(5),.moment-pareto td:nth-child(5){width:13%}
+  .moment-pareto th:nth-child(6),.moment-pareto td:nth-child(6){width:13%}
+  .moment-pareto th:nth-child(7),.moment-pareto td:nth-child(7){width:26%}
+  .moment-pareto .moment-row small{font-size:6px;line-height:1.05;white-space:nowrap}
+  .moment-pareto .phase-icon{width:100% !important;max-width:54px;height:24px;flex-basis:auto}
+  .fundamental-dot{width:8px;height:8px}
+}
