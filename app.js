@@ -267,12 +267,14 @@ function renderMomentPareto(all,lookback=20){
   const selectedRow=selectedStock
     ?(rows.find(x=>x.stock.ticker===selectedStock.ticker)||buildParetoRows([selectedStock],lookback).rows[0]||null)
     :null;
-  const displayBuys=isAll?buys:(selectedRow?[selectedRow]:[]);
-  const displaySells=isAll?sells:(selectedRow?[selectedRow]:[]);
+  // ALL = top 5 per side. Specific ticker = show it only in the side it actually qualifies for.
+  // A selected ticker must never be duplicated into both BUY and DISTRIBUTION tables.
+  const displayBuys=isAll?buys:(selectedRow&&selectedRow.buyEligible?[selectedRow]:[]);
+  const displaySells=isAll?sells:(selectedRow&&selectedRow.sellEligible?[selectedRow]:[]);
   const rotation=isAll?brokerRotationAllHtml(all):brokerRotationHtml(selectedStock);
   const activeDetailStock=isAll?detailStock:selectedStock;
   const detail=activeDetailStock?renderStockDetail(activeDetailStock,lookback):'<div class="detail-placeholder">Klik saham pada tabel atau pilih saham untuk membuka detail broker, timing, dan risk.</div>';
-  el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div><div class="mta-state">'+esc(provider().toUpperCase())+'</div></div><div class="scanner-grid"><section><h3>BUY PARETO</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">Pareto = multi-objective frontier: strength, broker evidence, persistence/rotation, price/volume confirmation, trend dan timing. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
+  el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div><div class="mta-state">'+esc(provider().toUpperCase())+'</div></div><div class="scanner-grid"><section><h3>BUY</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>SCORE</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">ALL menampilkan 5 saham teratas per sisi; saat memilih 1 saham, saham hanya muncul di sisi yang sesuai dengan sinyal/eligibility-nya. BRK hanya ditampilkan jika broker detail tersedia. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
   el.onclick=e=>{
     const row=e.target.closest('.moment-row');
     if(!row||!el.contains(row))return;
@@ -293,7 +295,9 @@ function momentumHtml(stock,lookback){
   return '<div class="momentum-confirmation"><div class="momentum-title"><b>MOMENTUM CONFIRMATION</b><span class="'+cls+'">'+esc(m.status)+'</span></div><div class="momentum-grid"><div><small>MACD</small><b>'+fmt(m.macd,2)+'</b></div><div><small>Histogram</small><b>'+fmt(m.histogram,2)+' '+(m.histogramRising?'↑':'↓')+'</b></div><div><small>Hist Δ</small><b>'+fmt(m.histogramDelta,2)+'</b></div><div><small>Vol / SMA10</small><b>'+fmt(m.volumeSmaRatio,2)+'×</b></div><div><small>Momentum</small><b>'+fmt(m.momentum,0)+'</b></div><div><small>Participation</small><b>'+fmt(m.participation,0)+'</b></div></div><small>Confirmation '+fmt(m.confirmation,0)+' · '+(m.earlyRecovery?'Momentum recovery · increasing participation':'MACD + volume confirmation layer')+'</small></div>';
 }
 function renderStockDetail(stock,lookback){
-  const a=StockFlow.analyze(stock.rows,lookback),b=a.broker||{},eBuy=getMomentEvidenceCached(stock,'buy',lookback),eSell=getMomentEvidenceCached(stock,'sell',lookback);
+  const a=StockFlow.analyze(stock?.rows||[],lookback);
+  if(!a) return '<div class="detail-placeholder">Data '+esc(stock?.ticker||'saham')+' belum cukup untuk analisis detail.</div>';
+  const b=a.broker||{},eBuy=getMomentEvidenceCached(stock,'buy',lookback),eSell=getMomentEvidenceCached(stock,'sell',lookback);
   const brokerRows=(stock.rows||[]).slice(-5).flatMap(r=>(r.brokers||[]).map(x=>({date:r.date,id:String(x.broker||x.code||''),net:Number(x.buyValue||0)-Number(x.sellValue||0)}))).filter(x=>x.id);
   const leaders=brokerRows.reduce((m,x)=>(m[x.id]=(m[x.id]||0)+x.net,m),{}); const ids=Object.entries(leaders).sort((a,z)=>Math.abs(z[1])-Math.abs(a[1])).slice(0,5);
   const timing=(e,side)=>e.rows.map(x=>'<div><b>T+'+x.h+'</b><span class="timingbar"><i style="width:'+Math.max(4,Math.min(100,50+(x.ret||0)*8))+'%"></i></span><em>'+(x.ret==null?'—':fmt(x.ret,1)+'%')+' · '+(x.hit==null?'—':fmt(x.hit,0)+'%')+'</em></div>').join('');
