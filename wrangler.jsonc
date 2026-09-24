@@ -17,5 +17,6 @@
       "NOTICE.md"
     ]
   },
-  "keep_vars":true
+  "keep_vars":true,
+  "previews":{}
 }
