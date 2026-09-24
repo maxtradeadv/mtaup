@@ -71,3 +71,29 @@
   .moment-pareto .phase-icon{display:block;width:34px!important;height:20px!important;max-width:100%;flex:0 0 34px}
   .moment-pareto .phase-name{display:none}
 }
+
+/* Pareto ergonomic final: no desktop horizontal drift + readable mobile typography */
+.moment-pareto .tablewrap{width:100%;min-width:0;overflow:hidden}
+.moment-pareto table{width:100% !important;max-width:100% !important;min-width:0 !important;table-layout:fixed}
+.moment-pareto th,.moment-pareto td{box-sizing:border-box;min-width:0}
+.moment-pareto th:first-child,.moment-pareto td:first-child{width:5%}
+.moment-pareto th:nth-child(2),.moment-pareto td:nth-child(2){width:18%}
+.moment-pareto th:nth-child(3),.moment-pareto td:nth-child(3){width:11%}
+.moment-pareto th:nth-child(4),.moment-pareto td:nth-child(4){width:12%}
+.moment-pareto th:nth-child(5),.moment-pareto td:nth-child(5){width:13%}
+.moment-pareto th:nth-child(6),.moment-pareto td:nth-child(6){width:14%}
+.moment-pareto th:nth-child(7),.moment-pareto td:nth-child(7){width:27%}
+@media(min-width:651px){
+  .moment-pareto th{font-size:9px}
+  .moment-pareto td{font-size:10px;padding:8px 4px}
+  .moment-pareto td b{font-size:11px}
+  .moment-pareto .moment-row small{font-size:7px}
+}
+@media(max-width:650px){
+  .moment-pareto th{font-size:9px;letter-spacing:-.02em;padding:7px 2px}
+  .moment-pareto td{font-size:9px;padding:8px 2px}
+  .moment-pareto td b{font-size:11px}
+  .moment-pareto .moment-row small{font-size:7px;line-height:1.05}
+  .moment-pareto .phase-icon{width:34px!important;height:20px!important;flex:0 0 34px}
+  .fundamental-dot{width:9px;height:9px}
+}
