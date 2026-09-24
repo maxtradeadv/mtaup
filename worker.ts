@@ -78,11 +78,11 @@ async function fundamentalList(){
   if(!res.ok)throw Error('Fundamental source HTTP '+res.status);
   const html=await res.text();
   const rows:any[]=[];
-  const trRe=/<tr\b[^>]*>([\\s\\S]*?)<\\/tr>/gi;
+  const trRe=/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   let m;
   while((m=trRe.exec(html))){
     const cells:string[]=[];
-    const tdRe=/<t[dh]\b[^>]*>([\\s\\S]*?)<\\/t[dh]>/gi;
+    const tdRe=/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
     let z;
     while((z=tdRe.exec(m[1])))cells.push(htmlText(z[1]));
     if(cells.length<15)continue;
