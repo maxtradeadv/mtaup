@@ -108,3 +108,16 @@
   .moment-pareto .phase-icon{width:24px!important;height:18px!important;flex:0 0 24px}
   .moment-pareto .phase-name{display:block;min-width:0;font-size:6.5px;line-height:1.05;text-align:left;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* Pareto phase: stack image above label for readable mobile and desktop */
+.moment-pareto .phase-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;width:100%;overflow:hidden}
+.moment-pareto .phase-name{display:block;min-width:0;width:100%;text-align:center;line-height:1.05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.moment-pareto .phase-icon{display:block;flex:0 0 auto}
+@media(min-width:651px){
+  .moment-pareto .phase-icon{width:42px!important;height:18px!important}
+  .moment-pareto .phase-name{font-size:8px}
+}
+@media(max-width:650px){
+  .moment-pareto .phase-icon{width:42px!important;height:18px!important}
+  .moment-pareto .phase-name{font-size:7.5px;line-height:1}
+}
