@@ -1,4 +1,4 @@
-const $=id=>document.getElementById(id);let data=[],brokerRows=[],liveEnabled=false,selectedTickers=new Set(),detailTicker='',backtestSeries=null,backtestTicker='';const BACKEND_URL=window.STOCKFLOW_BACKEND_URL||window.location.origin,BACKTEST_BUY_COST_PCT=0.15,BACKTEST_SELL_COST_PCT=0.25,PROVIDER_KEY='stockflow-provider',CACHE_KEY='stockflow-auto-cache-v2';let sourceMeta={provider:'',timestamp:'',loading:false};
+const $=id=>document.getElementById(id);let data=[],brokerRows=[],liveEnabled=false,selectedTickers=new Set(),detailTicker='',backtestSeries=null,backtestTicker='';let fundamentalMap=new Map(),fundamentalMeta={loaded:false,count:0,source:''};const BACKEND_URL=window.STOCKFLOW_BACKEND_URL||window.location.origin,BACKTEST_BUY_COST_PCT=0.15,BACKTEST_SELL_COST_PCT=0.25,PROVIDER_KEY='stockflow-provider',CACHE_KEY='stockflow-auto-cache-v2';let sourceMeta={provider:'',timestamp:'',loading:false};
 // Cache the expensive ALL-scanner calculation/evidence. Ticker picker changes are local-only.
 let scannerCache={dataRef:null,lookback:null,result:null,evidence:new Map()};
 function makeDemo(){const ts=['BBCA','BBRI','BMRI','TLKM','ASII','BBNI','ICBP','INDF','ANTM','MDKA','GOTO','UNVR','PGAS','ADRO','PTBA','SMGR','JPFA','KLBF','AMRT','ACES'];return ts.map((ticker,k)=>{let p=1000+k*275,rows=[],reg=k<6?'BUY':k>=14?'SELL':'NEUTRAL';for(let i=0;i<140;i++){const d=new Date(Date.now()-(139-i)*86400000),c=Math.sin((i+k)*.37),n=Math.sin((i*7+k*11)*.91)*.004,dir=reg==='BUY'?.0028:reg==='SELL'?-.0028:.0001*c,o=p*(1+n),m=dir+(reg==='BUY'?Math.max(0,c)*.006:reg==='SELL'?-Math.max(0,c)*.006:c*.008)+n*.45,cl=o*(1+m),h=Math.max(o,cl)*(1+(reg==='BUY'?.01:.006)+Math.abs(n)),l=Math.min(o,cl)*(1+(reg==='SELL'?-.01:-.006)-Math.abs(n)),v=Math.round((650000+((i*9301+k*17011)%700000))*(reg==='NEUTRAL'?1:(i%9===0?1.8:1.05)));rows.push({date:d.toISOString().slice(0,10),ticker,open:o,high:h,low:l,close:cl,volume:v,value:v*cl,brokerNetValue:(reg==='BUY'?.16:reg==='SELL'?- .16:.02*c)*v*cl});p=cl}return{ticker,rows,lookback:20}})}
@@ -6,6 +6,27 @@ function esc(x){return String(x??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&l
 function fmt(x,d=2){return x==null||!Number.isFinite(Number(x))?'-':Number(x).toFixed(d)}
 function statCells(s){return `<td>${s.count}</td><td>${fmt(s.hitRate,1)}%</td><td>${fmt(s.avgReturn)}%</td><td>${fmt(s.medianReturn)}%</td><td>${fmt(s.expectancy)}%</td><td>${fmt(s.winLossRatio)}</td><td>${fmt(s.avgMAE)}%</td><td>${fmt(s.avgMFE)}%</td>`}
 function table(items,type){return items.length?items.map((x,i)=>`<tr data-ticker="${esc(x.ticker)}"><td>${i+1}</td><td><b>${esc(x.ticker)}</b></td><td>${x.score.toFixed(0)}</td><td>${(type==='BUY'?x.acc:x.dist).toFixed(0)}</td><td>${(type==='BUY'?x.trend:x.breakdown).toFixed(0)}</td></tr>`).join(''):'<tr><td colspan="5">Belum ada kandidat.</td></tr>'}
+function fundamentalDot(ticker){
+  const f=fundamentalMap.get(String(ticker||'').toUpperCase());
+  const cls=f?.class||'pending';
+  const title=f?esc((f.label||'Fundamental')+' · Score '+fmt(f.score,0)):'Fundamental belum dimuat';
+  return '<span class="fundamental-dot '+cls+'" title="'+title+'" aria-label="'+title+'"></span>';
+}
+async function loadFundamental(){
+  try{
+    const res=await fetch(BACKEND_URL+'/fundamental',{cache:'no-store'}),j=await res.json();
+    if(!res.ok||!j.ok||!Array.isArray(j.data))throw Error(j.error||'Fundamental data kosong');
+    const list=window.MTAFundamental?.normalize?window.MTAFundamental.normalize(j.data):j.data;
+    fundamentalMap=new Map((list||[]).map(x=>[String(x.ticker||'').toUpperCase(),x]));
+    fundamentalMeta={loaded:true,count:fundamentalMap.size,source:j.source||''};
+    render();
+    setLiveStatus((fundamentalMeta.source||'Fundamental')+' · '+fundamentalMeta.count+' emiten');
+  }catch(e){
+    console.warn('[FUNDAMENTAL]',e);
+    fundamentalMeta={loaded:false,count:0,source:''};
+    render();
+  }
+}
 function phaseIcon(phase,side='buy'){
   const p=String(phase||'').toUpperCase(),buy=side==='buy';
   const pos={'PRE-ACCUMULATION':[18,30],'ABSORPTION':[31,18],'EARLY BREAKOUT':[45,23],'MARKUP':[58,7],'LATE / CHASE':[69,10],'DISTRIBUTION EARLY':[69,10],'DISTRIBUTION CONFIRMED':[72,13],'BREAKDOWN WARNING':[76,20],'BREAKDOWN':[80,27],'PANIC / LATE EXIT':[82,31]};
@@ -129,7 +150,7 @@ function renderMomentPareto(all,lookback=20){
   const list=(arr,side)=>arr.map((x,i)=>{
     const a=x.a,br=x.brokerAvailable,score=side==='buy'?x.buyScore:x.sellScore,phase=phaseFor(x,side),tim=timingState({...x,buyPhase:side==='buy'?phase:'',sellPhase:side==='sell'?phase:''},side);
     const primary=side==='buy'?a.acc:a.dist,broker=br?(side==='buy'?a.brokerScore:100-a.brokerScore):null;
-    return '<tr class="moment-row" data-ticker="'+esc(x.stock.ticker)+'" data-zone="'+side+'"><td>'+ (i+1)+'</td><td><b>'+esc(x.stock.ticker)+'</b><small>'+tim+'</small></td><td><b>'+fmt(primary,0)+'</b></td><td>'+(broker==null?'—':fmt(broker,0))+'</td><td>'+fmt(side==='buy'?x.broker?.persistence5:x.broker?.persistence5,0)+'</td><td>'+fmt(score,0)+'</td><td>'+phaseIcon(phase,side)+'</td></tr>';
+    return '<tr class="moment-row" data-ticker="'+esc(x.stock.ticker)+'" data-zone="'+side+'"><td>' + fundamentalDot(x.stock.ticker) + '</td><td><b>'+esc(x.stock.ticker)<small>'+tim+'</small></td><td><b>'+fmt(primary,0)+'</b></td><td>'+(broker==null?'—':fmt(broker,0))+'</td><td>'+fmt(side==='buy'?x.broker?.persistence5:x.broker?.persistence5,0)+'</td><td>'+fmt(score,0)+'</td><td>'+phaseIcon(phase,side)+'</td></tr>';
   }).join('');
   const isAll=!selectedStock;
   // In specific-picker mode, always bind the visual detail to the selected
@@ -145,7 +166,7 @@ function renderMomentPareto(all,lookback=20){
   const rotation=isAll?brokerRotationAllHtml(all):brokerRotationHtml(selectedStock);
   const activeDetailStock=isAll?detailStock:selectedStock;
   const detail=activeDetailStock?renderStockDetail(activeDetailStock,lookback):'<div class="detail-placeholder">Klik saham pada tabel atau pilih saham untuk membuka detail broker, timing, dan risk.</div>';
-  el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div></div><div class="scanner-grid"><section><h3>BUY</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>SCORE</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">ALL menampilkan 5 saham teratas per sisi; saat memilih 1 saham, saham hanya muncul di sisi yang sesuai dengan sinyal/eligibility-nya. BRK hanya ditampilkan jika broker detail tersedia. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
+  el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div></div><div class="scanner-grid"><section><h3>BUY</h3><div class="tablewrap"><table><thead><tr><th>F</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>SCORE</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>F</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">ALL menampilkan 5 saham teratas per sisi; saat memilih 1 saham, saham hanya muncul di sisi yang sesuai dengan sinyal/eligibility-nya. BRK hanya ditampilkan jika broker detail tersedia. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
   el.onclick=e=>{
     const row=e.target.closest('.moment-row');
     if(!row||!el.contains(row))return;
@@ -299,5 +320,5 @@ async function autoLoad(){
 }
 $('lookback').onchange=render;
 $('provider').onchange=()=>{info();sourceMeta={provider:provider(),timestamp:'',loading:false};updateSourceNameplate();loadSourceMeta(provider());autoLoad()};
-info();refresh();render();setTimeout(autoLoad,50);
+info();refresh();render();setTimeout(()=>{loadFundamental();autoLoad()},50);
 try{const s=localStorage.getItem(PROVIDER_KEY);if(['auto','yahoo','remote-csv','idx'].includes(s))$('provider').value=s}catch{}
