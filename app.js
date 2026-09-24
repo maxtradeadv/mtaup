@@ -287,7 +287,7 @@ function trimToLast90(rows){
   const dates=(rows||[]).map(r=>String(r.date||'')).filter(Boolean).sort();
   if(!dates.length)return rows||[];
   const end=new Date(dates[dates.length-1]+'T00:00:00Z');
-  const start=new Date(end.getTime()-89*86400000);
+  const start=new Date(end.getTime()-119*86400000);
   const from=start.toISOString().slice(0,10);
   return (rows||[]).filter(r=>String(r.date||'')>=from&&String(r.date||'')<=dates[dates.length-1]);
 }function provider(){return $('provider').value}
