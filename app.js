@@ -261,11 +261,17 @@ function renderMomentPareto(all,lookback=20){
     return '<tr class="moment-row" data-ticker="'+esc(x.stock.ticker)+'" data-zone="'+side+'"><td>'+ (i+1)+'</td><td><b>'+esc(x.stock.ticker)+'</b><small>'+tim+'</small></td><td><b>'+fmt(primary,0)+'</b></td><td>'+(broker==null?'—':fmt(broker,0))+'</td><td>'+fmt(side==='buy'?x.broker?.persistence5:x.broker?.persistence5,0)+'</td><td>'+fmt(score,0)+'</td><td>'+phaseIcon(phase,side)+'</td></tr>';
   }).join('');
   const isAll=!selectedStock;
-  const selectedRow=selectedStock?rows.find(x=>x.stock.ticker===selectedStock.ticker):null;
-  const displayBuys=isAll?buys:(selectedRow?.buyEligible?[selectedRow]:[]);
-  const displaySells=isAll?sells:(selectedRow?.sellEligible?[selectedRow]:[]);
+  // In specific-picker mode, always bind the visual detail to the selected
+  // ticker. The selected ticker may not be present in the global Pareto
+  // shortlist, so do not let a missing shortlist row blank the whole view.
+  const selectedRow=selectedStock
+    ?(rows.find(x=>x.stock.ticker===selectedStock.ticker)||buildParetoRows([selectedStock],lookback).rows[0]||null)
+    :null;
+  const displayBuys=isAll?buys:(selectedRow?[selectedRow]:[]);
+  const displaySells=isAll?sells:(selectedRow?[selectedRow]:[]);
   const rotation=isAll?brokerRotationAllHtml(all):brokerRotationHtml(selectedStock);
-  const detail=detailStock?renderStockDetail(detailStock,lookback):'<div class="detail-placeholder">Klik saham pada tabel atau pilih saham untuk membuka detail broker, timing, dan risk.</div>';
+  const activeDetailStock=isAll?detailStock:selectedStock;
+  const detail=activeDetailStock?renderStockDetail(activeDetailStock,lookback):'<div class="detail-placeholder">Klik saham pada tabel atau pilih saham untuk membuka detail broker, timing, dan risk.</div>';
   el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div><div class="mta-state">'+esc(provider().toUpperCase())+'</div></div><div class="scanner-grid"><section><h3>BUY PARETO</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">Pareto = multi-objective frontier: strength, broker evidence, persistence/rotation, price/volume confirmation, trend dan timing. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
   el.onclick=e=>{
     const row=e.target.closest('.moment-row');
