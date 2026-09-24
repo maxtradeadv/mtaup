@@ -282,7 +282,15 @@ function filterTickerOptions(){const search=$('tickerSearch'),list=$('tickerOpti
 function chooseTicker(t){const el=$('ticker'),search=$('tickerSearch');if(t==='ALL'){selectedTickers=new Set(data.map(x=>x.ticker));search.value=''}else{selectedTickers=new Set([t]);search.value=t}el.value=t;closeTickerPicker();render();}
 function closeTickerPicker(){const search=$('tickerSearch'),combo=search?.closest('.stockcombo');combo?.classList.remove('open');search?.setAttribute('aria-expanded','false')}
 function closeTickerOutside(e){const combo=$('tickerSearch')?.closest('.stockcombo');if(combo&&!combo.contains(e.target))closeTickerPicker()}document.addEventListener('click',closeTickerOutside,true);document.addEventListener('touchstart',closeTickerOutside,{capture:true,passive:true});
-function ymd(d){return d.toISOString().slice(0,10).replaceAll('-','')}function provider(){return $('provider').value}
+function ymd(d){return d.toISOString().slice(0,10).replaceAll('-','')}
+function trimToLast90(rows){
+  const dates=(rows||[]).map(r=>String(r.date||'')).filter(Boolean).sort();
+  if(!dates.length)return rows||[];
+  const end=new Date(dates[dates.length-1]+'T00:00:00Z');
+  const start=new Date(end.getTime()-89*86400000);
+  const from=start.toISOString().slice(0,10);
+  return (rows||[]).filter(r=>String(r.date||'')>=from&&String(r.date||'')<=dates[dates.length-1]);
+}function provider(){return $('provider').value}
 async function loadSourceMeta(p=provider()){if(sourceMeta.loading)return;sourceMeta.loading=true;try{const res=await fetch(BACKEND_URL+'/source-meta?provider='+encodeURIComponent(p),{cache:'no-store'}),j=await res.json();if(res.ok&&j.ok){sourceMeta={provider:p,timestamp:j.sourceTimestamp||'',loading:false};updateSourceNameplate()}else{sourceMeta={provider:p,timestamp:'',loading:false};updateSourceNameplate()}}catch(e){sourceMeta={provider:p,timestamp:'',loading:false};updateSourceNameplate()}}function updateSourceNameplate(){const p=provider();if(sourceMeta.provider!==p)return;const el=$('lastUpdateInline');if(!el)return;if(sourceMeta.timestamp){const t=fmtSourceTime(sourceMeta.timestamp);el.textContent='Data tersedia '+t+' WIB'}else el.textContent='Data tersedia · metadata source belum tersedia'}function fmtSourceTime(v){const dt=new Date(v);return Number.isFinite(dt.getTime())?dt.toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Asia/Jakarta'}).replace(',', ''):'-'}function info(){const p=provider();const msg=p==='yahoo'?'Yahoo Finance: sumber pihak ketiga; historical/delayed OHLCV, bukan IDX dan bukan realtime exchange feed.':p==='remote-csv'?'Daily Remote CSV: CSV publik pihak ketiga, IDX-derived via imq21; bukan API resmi IDX.':p==='idx'?'IDX Official: OHLCV, value, volume, frequency, foreign flow dari endpoint publik IDX.':p==='remote-csv'?'':'AUTO: Daily Remote CSV → Yahoo Finance historical → cache lokal. Broker Rotation hanya ditampilkan bila ada data broker tervalidasi.';const txt=$('providerInfoText');if(txt)txt.textContent=msg;try{localStorage.setItem(PROVIDER_KEY,p)}catch{}}
 function saveCache(){try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:Date.now(),data}))}catch(e){console.warn('[CACHE] save failed',e)}}
 function restoreCache(){try{const x=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');if(x?.data?.length){data=x.data;refresh();render();$('status').textContent='OFFLINE CACHE';setLiveStatus(`Cache lokal · ${data.length} saham · bukan data live`);return true}}catch(e){console.warn('[CACHE] restore failed',e)}return false}
@@ -336,7 +344,8 @@ async function loadLiveAll(){
     label=p==='auto'?'Daily Remote CSV → Yahoo → Cache':p.toUpperCase();
   setLiveStatus(`Mengambil ALL via ${label}...`);
   const j=await fetchMarketRangeChunked(from,to,p);
-  const prices=StockFlowProvider.normalize(j.data||[]);
+  let prices=StockFlowProvider.normalize(j.data||[]);
+  prices=trimToLast90(prices);
   if(!prices.length)throw Error('Data market kosong');
   data=StockFlowProvider.group(prices);
   brokerRows=[];
@@ -351,7 +360,8 @@ async function loadLiveAll(){
   setLiveStatus(`${j.source||p} · ALL · ${data.length} saham · ${prices.length} baris OHLCV · tanpa broker detail${diagText}`);
   saveCache();
 }
-async function loadLiveStock(){backtestTicker='';backtestSeries=null;const t=[...selectedTickers];if(t.length!==1)return loadLiveAll();const ticker=t[0];const p=provider(); await loadSourceMeta(p); const to=sourceMeta.timestamp?new Date(sourceMeta.timestamp):new Date(),from=new Date(to.getTime()-89*86400000),url=`${BACKEND_URL}/stock?ticker=${encodeURIComponent(ticker)}&from=${ymd(from)}&to=${ymd(to)}&provider=${encodeURIComponent(p)}`;setLiveStatus(`Mengambil ${ticker} via ${p.toUpperCase()}...`);const res=await fetch(url,{cache:'no-store'}),j=await res.json();if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status}`);const prices=StockFlowProvider.normalize(j.prices||[]),br=j.broker||[];if(!prices.length)throw Error('OHLCV kosong');const fresh=StockFlowProvider.group(StockFlowProvider.mergeBrokerRows(prices,br));const keep=data.filter(x=>x.ticker!==ticker);data=[...keep,...fresh];brokerRows=br;selectedTickers=new Set([ticker]);refresh();render();$('status').textContent=(j.provider||p).toUpperCase();setLiveStatus(`${j.source||p} · ${ticker} · ${prices.length} hari · ${br.length} broker rows`);saveCache()}
+async function loadLiveStock(){backtestTicker='';backtestSeries=null;const t=[...selectedTickers];if(t.length!==1)return loadLiveAll();const ticker=t[0];const p=provider(); await loadSourceMeta(p); const to=sourceMeta.timestamp?new Date(sourceMeta.timestamp):new Date(),from=new Date(to.getTime()-89*86400000),url=`${BACKEND_URL}/stock?ticker=${encodeURIComponent(ticker)}&from=${ymd(from)}&to=${ymd(to)}&provider=${encodeURIComponent(p)}`;setLiveStatus(`Mengambil ${ticker} via ${p.toUpperCase()}...`);const res=await fetch(url,{cache:'no-store'}),j=await res.json();if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status}`);let prices=StockFlowProvider.normalize(j.prices||[]),br=j.broker||[];
+  prices=trimToLast90(prices);if(!prices.length)throw Error('OHLCV kosong');const fresh=StockFlowProvider.group(StockFlowProvider.mergeBrokerRows(prices,br));const keep=data.filter(x=>x.ticker!==ticker);data=[...keep,...fresh];brokerRows=br;selectedTickers=new Set([ticker]);refresh();render();$('status').textContent=(j.provider||p).toUpperCase();setLiveStatus(`${j.source||p} · ${ticker} · ${prices.length} hari · ${br.length} broker rows`);saveCache()}
 function stamp(sourceTime=''){const t=fmtSourceTime(sourceTime||sourceMeta.timestamp);const old=$('lastUpdate');if(old)old.textContent=t;updateSourceNameplate();return t}function appLog(source){const el=$('providerInfoText');if(el)el.textContent=source}function setLiveStatus(x){const old=$('liveStatus');if(old)old.textContent=x;const out=$('liveStatusInline');if(out)out.textContent='Data Connection · '+x;updateSourceNameplate()}
 async function autoLoad(){
   const p=provider();
