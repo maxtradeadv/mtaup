@@ -63,6 +63,61 @@ async function stock(t:string,a:string,b:string,p:Provider){
   return {ticker,from:a,to:b,prices,broker};
 }
 
+
+let fundamentalCache:{at:number;data:any[]}|null=null;
+function htmlText(s:string){
+  return s.replace(/<script[\\s\\S]*?<\\/script>/gi,'').replace(/<style[\\s\\S]*?<\\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\\s+/g,' ').trim();
+}
+function fundamentalNumber(s:string){
+  const v=Number(String(s||'').replace(/,/g,'').replace(/%/g,'').trim());
+  return Number.isFinite(v)?v:null;
+}
+async function fundamentalList(){
+  if(fundamentalCache&&Date.now()-fundamentalCache.at<6*60*60*1000)return fundamentalCache.data;
+  const res=await fetch('https://sahamidx.com/lk/',{headers:{Accept:'text/html','User-Agent':'Mozilla/5.0 MTA Fundamental'}});
+  if(!res.ok)throw Error('Fundamental source HTTP '+res.status);
+  const html=await res.text();
+  const rows:any[]=[];
+  const trRe=/<tr\\b[^>]*>([\\s\\S]*?)<\\/tr>/gi;
+  let m;
+  while((m=trRe.exec(html))){
+    const cells:string[]=[];
+    const tdRe=/<t[dh]\\b[^>]*>([\\s\\S]*?)<\\/t[dh]>/gi;
+    let z;
+    while((z=tdRe.exec(m[1])))cells.push(htmlText(z[1]));
+    if(cells.length<15)continue;
+    const ticker=String(cells[0]||'').toUpperCase().trim();
+    if(!/^[A-Z0-9]{2,6}$/.test(ticker)||ticker==='CODE')continue;
+    rows.push({
+      ticker,
+      asOf:String(cells[15]||cells[14]||'').trim(),
+      period:String(cells[1]||'').trim(),
+      price:fundamentalNumber(cells[2]),
+      eps:fundamentalNumber(cells[3]),
+      bv:fundamentalNumber(cells[4]),
+      cfps:fundamentalNumber(cells[5]),
+      per:fundamentalNumber(cells[6]),
+      pbv:fundamentalNumber(cells[7]),
+      pcfr:fundamentalNumber(cells[8]),
+      der:fundamentalNumber(cells[9]),
+      qoq:fundamentalNumber(cells[10]),
+      yoy:fundamentalNumber(cells[11]),
+      roe:fundamentalNumber(cells[12]),
+      roa:fundamentalNumber(cells[13]),
+      devY:fundamentalNumber(cells[14])
+    });
+  }
+  const latest=new Map<string,any>();
+  rows.forEach(x=>{
+    const old=latest.get(x.ticker);
+    if(!old||String(x.asOf)>String(old.asOf))latest.set(x.ticker,x);
+  });
+  const data=[...latest.values()];
+  if(!data.length)throw Error('Fundamental source returned no rows');
+  fundamentalCache={at:Date.now(),data};
+  return data;
+}
+
 const ACCESS_CODE_ENV='APP_ACCESS_CODE';
 const SESSION_SECRET_ENV='APP_SESSION_SECRET';
 function accessCodes(){
@@ -79,7 +134,7 @@ async function validSession(req:Request){const key=await sessionKey();if(!key)re
 function clientKey(req:Request){return(req.headers.get('x-forwarded-for')||req.headers.get('cf-connecting-ip')||'unknown').split(',')[0].trim().slice(0,80)||'unknown'}
 function loginPage(message=''){const safe=message.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');return new Response(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>Stock Flow · Private</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f4f6;color:#111827;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.box{width:min(92vw,380px);background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:26px;box-shadow:0 12px 40px #0001}h1{margin:0 0 6px;font-size:24px}p{margin:0 0 22px;color:#6b7280;font-size:13px}label{font-size:11px;font-weight:800;color:#6b7280}input{width:100%;height:48px;margin:6px 0 12px;border:1px solid #d1d5db;border-radius:10px;padding:10px 12px;font-size:20px;letter-spacing:.18em;text-align:center}button{width:100%;height:46px;border:0;border-radius:10px;background:#111827;color:#fff;font-weight:800;font-size:14px}.err{margin:0 0 12px;padding:9px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:12px;text-align:center}</style></head><body><form class="box" method="post" action="/auth/login"><h1>🔒 Stock Flow Scanner</h1><p>Aplikasi ini private. Masukkan security code untuk melanjutkan.</p>${safe?`<div class="err">${safe}</div>`:''}<label>SECURITY CODE</label><input name="code" type="password" inputmode="numeric" autocomplete="current-password" maxlength="64" autofocus required><button type="submit">Buka Scanner</button></form></body></html>`,{status:message?401:200,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})}
 async function authGuard(req:Request){const configured=accessCodes().length>0;if(!configured)return new Response('Private access is not configured. Set Cloudflare secret APP_ACCESS_CODE.',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});if(await validSession(req))return null;return loginPage()}
-const files:any={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/analysis.js':'analysis.js','/data-provider.js':'data-provider.js','/calibration.js':'calibration.js','/app.js':'app.js','/manifest.webmanifest':'manifest.webmanifest','/icon.svg':'icon.svg','/icon-180.png':'icon-180.png','/sw.js':'sw.js'};
+const files:any={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/analysis.js':'analysis.js','/fundamental.js':'fundamental.js','/data-provider.js':'data-provider.js','/calibration.js':'calibration.js','/app.js':'app.js','/manifest.webmanifest':'manifest.webmanifest','/icon.svg':'icon.svg','/icon-180.png':'icon-180.png','/sw.js':'sw.js'};
 const types:any={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'application/javascript; charset=utf-8',webmanifest:'application/manifest+json; charset=utf-8',svg:'image/svg+xml',png:'image/png'};
 const textExt=new Set(['html','css','js','webmanifest','svg']);
 async function file(path:string,req:Request){
@@ -107,6 +162,7 @@ export default {async fetch(req:Request,env:Env){runtimeEnv=env;const u=new URL(
   }
   const guard=await authGuard(req);if(guard)return guard;
   if(files[u.pathname])return file(u.pathname,req);
+  if(u.pathname==='/fundamental'){const data=await fundamentalList();return json({ok:true,source:'SahamIDX financial-ratio table (third-party; latest reported financial period per ticker)',count:data.length,data})}
   if(u.pathname==='/source-meta'){const requested=providerOf(u.searchParams.get('provider'));let sourceTimestamp='';if(requested==='idx'){sourceTimestamp=await idxSourceTimestamp()}else if(requested==='yahoo'){try{const r=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EJKSE?range=5d&interval=1d',{headers:{Accept:'application/json','User-Agent':'Mozilla/5.0'}});if(r.ok){const j=await r.json() as any;const ts=j?.chart?.result?.[0]?.meta?.regularMarketTime;if(ts)sourceTimestamp=new Date(Number(ts)*1000).toISOString()}}catch(e){console.warn('[YAHOO META]',String(e))}}return json({ok:true,provider:requested,source:requested==='remote-csv'||requested==='auto'?'Community daily CSV (IDX-derived via imq21; not official IDX API)':requested==='idx'?'Official IDX API':'Yahoo Finance (third-party historical)',sourceTimestamp})}
   if(u.pathname==='/universe'){const requested=providerOf(u.searchParams.get('provider'));if(requested==='yahoo'){const ulist=await yahooUniverse();return json({ok:true,provider:'yahoo',source:'Yahoo Finance screener universe backed by daily CSV ticker list',count:ulist.length,universeCount:ulist.length,data:ulist})}return json({ok:true,provider:requested,data:ytickers.map(t=>({ticker:t,name:t}))})}
   if(u.pathname==='/market-range'){const a=u.searchParams.get('from'),b=u.searchParams.get('to'),requested=providerOf(u.searchParams.get('provider'));if(!valid(a)||!valid(b))return json({error:'from and to must be YYYYMMDD'},400);let ts=(u.searchParams.get('tickers')||'').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean);let names=new Map<string,string>();if(!ts.length){const ulist=await yahooUniverse();ts=ulist.map(x=>x.ticker);names=new Map(ulist.map(x=>[x.ticker,x.name]));}let used=requested,d:any[]=[];const diagnostics:any={universeCount:ts.length};if(requested==='idx'){try{d=await idxMarketRange(a!,b!,ts);if(!d.length)throw Error('IDX returned no stock summary rows');used='idx'}catch(e){console.warn('[IDX] Official endpoint blocked/unavailable, falling back to community IDX-derived CSV:',String(e));const fallbackTs=ts.length?ts:ytickers;d=await range(a!,b!,'remote-csv',fallbackTs);if(!d.length)throw Error(`IDX unavailable and Remote CSV returned no rows: ${String(e)}`);used='remote-csv'}}else if(requested==='auto'){try{d=await range(a!,b!,'remote-csv',ts);if(!d.length)throw Error('Remote CSV returned no rows');used='remote-csv'}catch(e){console.warn('[AUTO] remote CSV unavailable, using Yahoo Finance:',String(e));const ulist=ts.length?ts:await yahooUniverse();if(!ts.length){ts=ulist.map(x=>x.ticker);names=new Map(ulist.map(x=>[x.ticker,x.name]));}d=await range(a!,b!,'yahoo',ts,names);if(!d.length)throw Error('Yahoo returned no rows');used='yahoo'}}else if(requested==='yahoo')d=await range(a!,b!,'yahoo',ts,names,diagnostics);else d=await range(a!,b!,requested,ts,names);return json({ok:true,provider:used,requestedProvider:requested,source:used==='remote-csv'?'Community daily CSV (IDX-derived via imq21; not official IDX API)':used==='idx'?'Official IDX API':'Yahoo Finance (third-party historical)',sourceTimestamp:'',from:a,to:b,count:d.length,diagnostics:used==='yahoo'?diagnostics:undefined,data:d})}
