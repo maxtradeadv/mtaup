@@ -20,7 +20,6 @@ async function loadFundamental(){
     fundamentalMap=new Map((list||[]).map(x=>[String(x.ticker||'').toUpperCase(),x]));
     fundamentalMeta={loaded:true,count:fundamentalMap.size,source:j.source||''};
     render();
-    setLiveStatus((fundamentalMeta.source||'Fundamental')+' · '+fundamentalMeta.count+' emiten');
   }catch(e){
     console.warn('[FUNDAMENTAL]',e);
     fundamentalMeta={loaded:false,count:0,source:''};
