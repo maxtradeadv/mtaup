@@ -237,13 +237,15 @@ function brokerRotationAllHtml(stocks){
 function renderMomentPareto(all,lookback=20){
   const el=$('momentPareto');if(!el)return;
   const {rows,buys,sells}=buildParetoRows(all,lookback),map=new Map(rows.map(x=>[x.stock.ticker,x])),n=Math.max(buys.length,sells.length,3);
+  const selected=[...selectedTickers];
+  const selectedStock=selected.length===1?all.find(s=>s.ticker===selected[0]):null;
   const list=(arr,side)=>arr.map((x,i)=>{
     const a=x.a,br=x.brokerAvailable,score=side==='buy'?x.buyScore:x.sellScore,phase=phaseFor(x,side),ev=momentEvidence(x.stock,side,lookback,all),tim=timingState({...x,buyPhase:side==='buy'?phase:'',sellPhase:side==='sell'?phase:''},side);
     const primary=side==='buy'?a.acc:a.dist,broker=br?(side==='buy'?a.brokerScore:100-a.brokerScore):null;
     return '<tr class="moment-row" data-ticker="'+esc(x.stock.ticker)+'" data-zone="'+side+'"><td>'+ (i+1)+'</td><td><b>'+esc(x.stock.ticker)+'</b><small>'+tim+'</small></td><td><b>'+fmt(primary,0)+'</b></td><td>'+(broker==null?'—':fmt(broker,0))+'</td><td>'+fmt(side==='buy'?x.broker?.persistence5:x.broker?.persistence5,0)+'</td><td>'+fmt(score,0)+'</td><td>'+phaseIcon(phase,side)+'</td><td>'+evidenceHtml(ev)+'</td></tr>';
   }).join('');
-  const rotation=all.length===1?brokerRotationHtml(all[0]):brokerRotationAllHtml(all);
-  const detail=all.length===1?renderStockDetail(all[0],lookback):'<div class="detail-placeholder">Klik saham pada BUY/SELL untuk membuka detail broker, timing, dan risk.</div>';
+  const rotation=brokerRotationAllHtml(all);
+  const detail=selectedStock?renderStockDetail(selectedStock,lookback):'<div class="detail-placeholder">Klik saham pada BUY/SELL untuk membuka detail broker, timing, dan risk.</div>';
   el.innerHTML='<div class="mta-title"><div><span class="eyebrow">MAX TRADE ADVICE</span><h2>ALL STOCK SCANNER</h2></div><div class="mta-state">'+esc(provider().toUpperCase())+'</div></div><div class="scanner-grid"><section><h3>BUY PARETO</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th><th>T+1…T+5</th></tr></thead><tbody>'+list(buys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>#</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th><th>T+1…T+5</th></tr></thead><tbody>'+list(sells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail"><h3>STOCK DETAIL</h3>'+detail+'</section><small class="moment-note">Pareto = multi-objective frontier: strength, broker evidence, persistence/rotation, price/volume confirmation, trend dan timing. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
   el.querySelectorAll('.moment-row').forEach(row=>row.onclick=()=>{const t=row.dataset.ticker;const z=row.dataset.zone;selectedTickers=new Set([t]);$('ticker').value=t;if($('tickerSearch'))$('tickerSearch').value=t;render()});
 }
