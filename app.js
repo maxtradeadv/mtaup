@@ -212,7 +212,7 @@ function earlyValidationHtml(all,lookback){
     console.error('[EARLY VALIDATION]',err);
     rows='<tr><td colspan="8">Backtest belum tersedia untuk data ini.</td></tr>';
   }
-  const html='<section class="early-validation"><h3>EARLY-CANDIDATE VALIDATION</h3><div class="early-rule"><b>Rule:</b> ACC &gt; DIST + phase PRE-ACCUMULATION / ABSORPTION / EARLY BREAKOUT / TRANSITION.</div><div class="early-tablewrap"><table><thead><tr><th>HORIZON</th><th>SAMPLE</th><th>HIT</th><th>AVG NET</th><th>MEDIAN</th><th>AVG MAE</th><th>AVG MFE</th><th>BUY BASELINE</th></tr></thead><tbody>'+rows+'</tbody></table></div><small class="early-note">Walk-forward: signal dihitung hanya dari data sampai T. AVG NET memakai fee beli 0.15% + fee jual 0.25%. MAE = adverse move maksimum setelah T dalam horizon; ini ukuran drawdown, bukan jaminan tanpa cut loss. BUY BASELINE = jumlah BUY eksplisit / avg net.</small></section>';
+  const html='<section class="early-validation"><h3>EARLY-CANDIDATE VALIDATION</h3><div class="early-rule"><b>Rule:</b> ACC &gt; DIST + phase PRE-ACCUMULATION / ABSORPTION / EARLY BREAKOUT / TRANSITION.</div><div class="early-tablewrap"><table><thead><tr><th>HORIZON</th><th>SAMPLE</th><th>HIT</th><th>AVG NET</th><th>MEDIAN</th><th>AVG MAE</th><th>AVG MFE</th><th>BUY BASELINE</th></tr></thead><tbody>'+rows+'</tbody></table></div><small class="early-note">Walk-forward: signal dihitung hanya dari data sampai T, lalu entry diuji pada open T+1. AVG NET memakai fee beli 0.15% + fee jual 0.25%. MAE = adverse move maksimum setelah T dalam horizon; ini ukuran drawdown, bukan jaminan tanpa cut loss. BUY BASELINE = jumlah BUY eksplisit / avg net.</small></section>';
   earlyValidationCache={dataRef:all,lookback,result:html};
   return html;
 }
