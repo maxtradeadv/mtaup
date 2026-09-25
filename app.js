@@ -1,6 +1,6 @@
 const $=id=>document.getElementById(id);let data=[],brokerRows=[],liveEnabled=false,selectedTickers=new Set(),detailTicker='',backtestSeries=null,backtestTicker='';let fundamentalMap=new Map(),fundamentalMeta={loaded:false,count:0,source:''};const BACKEND_URL=window.STOCKFLOW_BACKEND_URL||window.location.origin,BACKTEST_BUY_COST_PCT=0.15,BACKTEST_SELL_COST_PCT=0.25,PROVIDER_KEY='stockflow-provider',CACHE_KEY='stockflow-auto-cache-v2';let sourceMeta={provider:'',timestamp:'',loading:false};
 // Cache the expensive ALL-scanner calculation/evidence. Ticker picker changes are local-only.
-let scannerCache={dataRef:null,lookback:null,result:null,evidence:new Map()};
+let scannerCache={dataRef:null,lookback:null,result:null,evidence:new Map()};let earlyValidationCache={dataRef:null,lookback:null,result:null};
 function makeDemo(){const ts=['BBCA','BBRI','BMRI','TLKM','ASII','BBNI','ICBP','INDF','ANTM','MDKA','GOTO','UNVR','PGAS','ADRO','PTBA','SMGR','JPFA','KLBF','AMRT','ACES'];return ts.map((ticker,k)=>{let p=1000+k*275,rows=[],reg=k<6?'BUY':k>=14?'SELL':'NEUTRAL';for(let i=0;i<140;i++){const d=new Date(Date.now()-(139-i)*86400000),c=Math.sin((i+k)*.37),n=Math.sin((i*7+k*11)*.91)*.004,dir=reg==='BUY'?.0028:reg==='SELL'?-.0028:.0001*c,o=p*(1+n),m=dir+(reg==='BUY'?Math.max(0,c)*.006:reg==='SELL'?-Math.max(0,c)*.006:c*.008)+n*.45,cl=o*(1+m),h=Math.max(o,cl)*(1+(reg==='BUY'?.01:.006)+Math.abs(n)),l=Math.min(o,cl)*(1+(reg==='SELL'?-.01:-.006)-Math.abs(n)),v=Math.round((650000+((i*9301+k*17011)%700000))*(reg==='NEUTRAL'?1:(i%9===0?1.8:1.05)));rows.push({date:d.toISOString().slice(0,10),ticker,open:o,high:h,low:l,close:cl,volume:v,value:v*cl,brokerNetValue:(reg==='BUY'?.16:reg==='SELL'?- .16:.02*c)*v*cl});p=cl}return{ticker,rows,lookback:20}})}
 function esc(x){return String(x??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m]||m))}
 function fmt(x,d=2){return x==null||!Number.isFinite(Number(x))?'-':Number(x).toFixed(d)}
@@ -90,7 +90,7 @@ function momentEvidence(stock,side,lookback=20,universe=null){
   }catch{return {rows:[]}}
 }
 
-function timingState(x,side){if(side==='buy')return x.buyPhase==='LATE / CHASE'?'WAIT':x.buyPhase==='EARLY BREAKOUT'?'CONFIRM':'NOW';return x.sellPhase==='PANIC / LATE EXIT'||x.sellPhase==='BREAKDOWN'?'URGENT':x.sellPhase==='BREAKDOWN WARNING'?'WARNING':'WATCH'}
+function timingState(x,side){if(side==='buy')return x.buyPhase==='LATE / CHASE'?'WAIT':x.buyPhase==='EARLY BREAKOUT'?'CONFIRM':'EARLY ENTRY';return x.sellPhase==='PANIC / LATE EXIT'||x.sellPhase==='BREAKDOWN'?'URGENT EXIT':x.sellPhase==='BREAKDOWN WARNING'?'EXIT WARNING':'WATCH'}
 function phaseFor(x,side){
   const a=x.a;
   if(side==='buy')return Number(a.chasePenalty||0)>=55?'LATE / CHASE':a.pattern==='MARKUP / BREAKOUT'&&Number(a.volRatio)>=1.2?'EARLY BREAKOUT':a.pattern==='ABSORPTION'?'ABSORPTION':a.pattern==='QUIET ACCUMULATION'?'PRE-ACCUMULATION':Number(a.trend)>=65?'MARKUP':Number(a.brokerScore)>=60?'PRE-ACCUMULATION':'TRANSITION';
@@ -107,7 +107,7 @@ function evidenceHtml(e){
 }
 function brokerRotationHtml(stock){
   const rows=(stock?.rows||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date)),recent=rows.slice(-5),prev=rows.slice(-10,-5);
-  if(!recent.some(r=>Array.isArray(r.brokers)&&r.brokers.length))return '<div class="rotation-empty">Broker Rotation: <b>NOT AVAILABLE</b> · broker detail belum tersedia untuk session yang berbeda.</div>';
+  if(!recent.some(r=>Array.isArray(r.brokers)&&r.brokers.length))return '<div class="rotation-empty">BROKER ROTATION: <b>UNAVAILABLE</b> · source ini tidak menyediakan data broker-level yang tervalidasi untuk sesi tersebut.</div>';
   const calc=arr=>{const m={};arr.forEach(r=>(r.brokers||[]).forEach(x=>{const id=String(x.broker||x.code||'').trim();if(id)m[id]=(m[id]||0)+Number(x.buyValue||0)-Number(x.sellValue||0)}));return m};
   const cur=calc(recent),old=calc(prev),ids=[...new Set([...Object.keys(cur),...Object.keys(old)])];
   return '<div class="rotation-row">'+ids.map(id=>({id,delta:(cur[id]||0)-(old[id]||0)})).sort((x,y)=>Math.abs(y.delta)-Math.abs(x.delta)).slice(0,6).map(x=>'<span><b>'+esc(x.id)+'</b> '+(x.delta>=0?'↑':'↓')+(Math.abs(x.delta)>0?'':'·')+'</span>').join('')+'</div>';
@@ -118,7 +118,7 @@ function brokerRotationAllHtml(stocks){
     if(Array.isArray(r.brokers)&&r.brokers.length)rows.push(r);
   }));
   const dates=[...new Set(rows.map(r=>r.date))].sort();
-  if(dates.length<2)return '<div class="rotation-empty">Broker Rotation: <b>menunggu broker detail</b> · tidak ada sumber broker-per-saham yang tervalidasi.</div>';
+  if(dates.length<2)return '<div class="rotation-empty">BROKER ROTATION: <b>UNAVAILABLE</b> · tidak ada data broker-per-saham tervalidasi pada source ini.</div>';
   const recentDates=new Set(dates.slice(-5)),prevDates=new Set(dates.slice(-10,-5));
   const calc=ds=>{const m={};rows.filter(r=>ds.has(r.date)).forEach(r=>(r.brokers||[]).forEach(x=>{
     const id=String(x.broker||x.code||'').trim();if(id)m[id]=(m[id]||0)+Number(x.buyValue||0)-Number(x.sellValue||0);
@@ -165,7 +165,7 @@ function renderMomentPareto(all,lookback=20){
   const rotation=isAll?brokerRotationAllHtml(all):brokerRotationHtml(selectedStock);
   const activeDetailStock=isAll?detailStock:selectedStock;
   const detail=activeDetailStock?renderStockDetail(activeDetailStock,lookback):'<div class="detail-placeholder">Klik saham pada tabel atau pilih saham untuk membuka detail broker, timing, dan risk.</div>';
-  el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div></div><div class="scanner-grid"><section><h3>BUY</h3><div class="tablewrap"><table><thead><tr><th>F</th><th>Saham</th><th>ACC</th><th>BRK</th><th>PERSIST</th><th>SCORE</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION WARNING</h3><div class="tablewrap"><table><thead><tr><th>F</th><th>Saham</th><th>DIST</th><th>BRK RISK</th><th>PERSIST</th><th>PARETO</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION</h3>'+rotation+'</section><section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">ALL menampilkan 5 saham teratas per sisi; saat memilih 1 saham, saham hanya muncul di sisi yang sesuai dengan sinyal/eligibility-nya. BRK hanya ditampilkan jika broker detail tersedia. BRK ditampilkan hanya jika broker detail tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
+  el.innerHTML='<div class="mta-title"><div><h2>'+ (isAll?'ALL STOCK SCANNER':esc(selectedStock.ticker)) +'</h2></div></div><div class="scanner-grid"><section><h3>EARLY BUY CANDIDATES</h3><div class="tablewrap"><table><thead><tr><th>F</th><th>Saham</th><th>ACCUM</th><th>BROKER</th><th>FLOW PERSIST</th><th>EARLY SCORE</th><th>PHASE</th></tr></thead><tbody>'+list(displayBuys,'buy')+'</tbody></table></div></section><section><h3 class="sell-head">DISTRIBUTION / EXIT WATCH</h3><div class="tablewrap"><table><thead><tr><th>F</th><th>Saham</th><th>DISTRIB</th><th>BROKER RISK</th><th>FLOW PERSIST</th><th>RISK SCORE</th><th>PHASE</th></tr></thead><tbody>'+list(displaySells,'sell')+'</tbody></table></div></section></div><section class="rotation-panel"><h3>BROKER ROTATION EVIDENCE</h3>'+rotation+'</section>'+(isAll?earlyValidationHtml(all,lookback):'')+'<section class="mta-detail" id="stockDetailPanel"><h3>STOCK DETAIL'+(detailStock?' · '+esc(detailStock.ticker):'')+'</h3>'+detail+'</section><small class="moment-note">ALL menampilkan 5 kandidat teratas per sisi. ACC > DIST hanya berarti kandidat early-entry; bukan konfirmasi entry. Momentum Check adalah konteks tambahan dan tidak menentukan eligibility. Broker hanya ditampilkan jika data broker-level tersedia; OHLCV tidak digunakan untuk menebak broker.</small>';
   el.onclick=e=>{
     const row=e.target.closest('.moment-row');
     if(!row||!el.contains(row))return;
@@ -183,7 +183,7 @@ function momentumHtml(stock,lookback){
   const m=window.MomentumConfirmation?.analyze(stock?.rows||[]);
   if(!m?.available)return '<div class="momentum-confirmation"><b>MOMENTUM CONFIRMATION</b><small>Data belum cukup untuk MACD/SMA10.</small></div>';
   const cls=m.confirmation>=70?'strong':m.confirmation>=55?'medium':'weak';
-  return '<div class="momentum-confirmation"><div class="momentum-title"><b>MOMENTUM CONFIRMATION</b><span class="'+cls+'">'+esc(m.status)+'</span></div><div class="momentum-grid"><div><small>MACD</small><b>'+fmt(m.macd,2)+'</b></div><div><small>Histogram</small><b>'+fmt(m.histogram,2)+' '+(m.histogramRising?'↑':'↓')+'</b></div><div><small>Hist Δ</small><b>'+fmt(m.histogramDelta,2)+'</b></div><div><small>Vol / SMA10</small><b>'+fmt(m.volumeSmaRatio,2)+'×</b></div><div><small>Momentum</small><b>'+fmt(m.momentum,0)+'</b></div><div><small>Participation</small><b>'+fmt(m.participation,0)+'</b></div></div><small>Confirmation '+fmt(m.confirmation,0)+' · '+(m.earlyRecovery?'Momentum recovery · increasing participation':'MACD + volume confirmation layer')+'</small></div>';
+  return '<div class="momentum-confirmation"><div class="momentum-title"><b>MOMENTUM CHECK</b><span class="'+cls+'">'+esc(({ 'MOMENTUM FADING':'WEAKENING','MOMENTUM EXPANSION':'EXPANDING','BULLISH CONFIRMED':'RISING + VOLUME','MOMENTUM WITHOUT PARTICIPATION':'RISING / LOW VOLUME','PARTICIPATION / MOMENTUM WEAKENING':'VOLUME / MOMENTUM DIVERGENCE' }[m.status]||m.status))+'</span></div><div class="momentum-grid"><div><small>MACD</small><b>'+fmt(m.macd,2)+'</b></div><div><small>Histogram</small><b>'+fmt(m.histogram,2)+' '+(m.histogramRising?'↑':'↓')+'</b></div><div><small>Hist Δ</small><b>'+fmt(m.histogramDelta,2)+'</b></div><div><small>Vol / SMA10</small><b>'+fmt(m.volumeSmaRatio,2)+'×</b></div><div><small>Momentum</small><b>'+fmt(m.momentum,0)+'</b></div><div><small>Participation</small><b>'+fmt(m.participation,0)+'</b></div></div><small>Momentum support '+fmt(m.confirmation,0)+' · '+(m.earlyRecovery?'recovery + participation rising':'MACD + volume context')+'</small></div>';
 }
 function renderStockDetail(stock,lookback){
   const a=StockFlow.analyze(stock?.rows||[],lookback);
@@ -193,8 +193,29 @@ function renderStockDetail(stock,lookback){
   const leaders=brokerRows.reduce((m,x)=>(m[x.id]=(m[x.id]||0)+x.net,m),{}); const ids=Object.entries(leaders).sort((a,z)=>Math.abs(z[1])-Math.abs(a[1])).slice(0,5);
   const timing=(e,side)=>e.rows.map(x=>'<div><b>T+'+x.h+'</b><span class="timingbar"><i style="width:'+Math.max(4,Math.min(100,50+(x.ret||0)*8))+'%"></i></span><em>'+(x.ret==null?'—':fmt(x.ret,1)+'%')+' · '+(x.hit==null?'—':fmt(x.hit,0)+'%')+'</em></div>').join('');
   const risk=[1,2,3,4,5].map(h=>{const d=eSell.rows.find(x=>x.h===h);const r=a.breakdown+(d?.ret!=null&&d.ret>0?0:10);return '<div><b>T+'+h+'</b><span class="risk-pill '+(r<35?'low':r<60?'medium':'high')+'">'+(r<35?'LOW':r<60?'MEDIUM':'HIGH')+'</span></div>'}).join('');
-  const tickerName=String(stock.name||a.name||'').trim(); return '<div class="stock-detail-head"><b>'+esc(a.ticker||stock.ticker)+(tickerName?' — '+esc(tickerName):'')+'</b><span>Price '+fmt(a.price,0)+'</span></div>'+momentumHtml(stock,lookback)+'<div class="detail-block"><h4>Broker Accumulation</h4><div class="broker-bars">'+(b.available&&ids.length?ids.map(x=>'<span><b>'+esc(x[0])+'</b><i>'+(x[1]>=0?'+++++++ ↑':'--- ↓')+'</i></span>').join(''):'<small>Broker detail tidak tersedia pada source ini.</small>')+'</div></div><div class="detail-metrics"><div><small>Accumulation</small><b>'+fmt(a.acc,0)+'</b></div><div><small>Distribution</small><b>'+fmt(a.dist,0)+'</b></div><div><small>Broker Persist</small><b>'+(b.available?fmt(b.persistence5,0):'—')+'</b></div><div><small>Rotation</small><b>'+(b.available?fmt(b.rotation,0):'—')+'</b></div></div><div class="timing-grid"><div><h4>TIMING BUY</h4>'+timing(eBuy,'buy')+'</div><div><h4>DISTRIBUTION RISK</h4>'+risk+'</div></div>';
+  const tickerName=String(stock.name||a.name||'').trim(); return '<div class="stock-detail-head"><b>'+esc(a.ticker||stock.ticker)+(tickerName?' — '+esc(tickerName):'')+'</b><span>Price '+fmt(a.price,0)+'</span></div>'+momentumHtml(stock,lookback)+'<div class="detail-block"><h4>Broker Flow Evidence</h4><div class="broker-bars">'+(b.available&&ids.length?ids.map(x=>'<span><b>'+esc(x[0])+'</b><i>'+(x[1]>=0?'+++++++ ↑':'--- ↓')+'</i></span>').join(''):'<small>Broker detail tidak tersedia pada source ini.</small>')+'</div></div><div class="detail-metrics"><div><small>Accumulation</small><b>'+fmt(a.acc,0)+'</b></div><div><small>Distribution</small><b>'+fmt(a.dist,0)+'</b></div><div><small>Broker Persist</small><b>'+(b.available?fmt(b.persistence5,0):'—')+'</b></div><div><small>Rotation</small><b>'+(b.available?fmt(b.rotation,0):'—')+'</b></div></div><div class="timing-grid"><div><h4>BUY SIGNAL FOLLOW-THROUGH</h4>'+timing(eBuy,'buy')+'</div><div><h4>DISTRIBUTION FORWARD CHECK</h4>'+risk+'</div></div>';
 }
+function earlyValidationHtml(all,lookback){
+  if(!Array.isArray(all)||!all.length||!window.StockFlowCalibration?.earlyMultiHorizon)return '';
+  if(earlyValidationCache.dataRef===all&&earlyValidationCache.lookback===lookback&&earlyValidationCache.result)return earlyValidationCache.result;
+  let rows='';
+  try{
+    const horizons=[1,3,5,10,20];
+    const early=window.StockFlowCalibration.earlyMultiHorizon(all,horizons,{lookback,buyCostPct:BACKTEST_BUY_COST_PCT,sellCostPct:BACKTEST_SELL_COST_PCT});
+    const baseline=horizons.map(h=>window.StockFlowCalibration.walkForward(all,{lookback,horizon:h,buyCostPct:BACKTEST_BUY_COST_PCT,sellCostPct:BACKTEST_SELL_COST_PCT}));
+    rows=horizons.map((h,i)=>{
+      const e=early[i]?.total||{},b=baseline[i]?.buy||{};
+      return '<tr><td>T+'+h+'</td><td>'+fmt(e.count,0)+'</td><td>'+fmt(e.hitRate,1)+'%</td><td>'+fmt(e.avgReturn,2)+'%</td><td>'+fmt(e.medianReturn,2)+'%</td><td>'+fmt(e.avgMAE,2)+'%</td><td>'+fmt(e.avgMFE,2)+'%</td><td>'+fmt(b.count,0)+' / '+fmt(b.avgReturn,2)+'%</td></tr>';
+    }).join('');
+  }catch(err){
+    console.error('[EARLY VALIDATION]',err);
+    rows='<tr><td colspan="8">Backtest belum tersedia untuk data ini.</td></tr>';
+  }
+  const html='<section class="early-validation"><h3>EARLY-CANDIDATE VALIDATION</h3><div class="early-rule"><b>Rule:</b> ACC &gt; DIST + phase PRE-ACCUMULATION / ABSORPTION / EARLY BREAKOUT / TRANSITION.</div><div class="early-tablewrap"><table><thead><tr><th>HORIZON</th><th>SAMPLE</th><th>HIT</th><th>AVG NET</th><th>MEDIAN</th><th>AVG MAE</th><th>AVG MFE</th><th>BUY BASELINE</th></tr></thead><tbody>'+rows+'</tbody></table></div><small class="early-note">Walk-forward: signal dihitung hanya dari data sampai T. AVG NET memakai fee beli 0.15% + fee jual 0.25%. MAE = adverse move maksimum setelah T dalam horizon; ini ukuran drawdown, bukan jaminan tanpa cut loss. BUY BASELINE = jumlah BUY eksplisit / avg net.</small></section>';
+  earlyValidationCache={dataRef:all,lookback,result:html};
+  return html;
+}
+
 function render(){
   const el=$('momentPareto');
   if(!el)return;
