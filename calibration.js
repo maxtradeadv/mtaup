@@ -173,5 +173,86 @@ window.StockFlowCalibration = (() => {
     };
   }
 
-  return {walkForward, multiHorizon, compareBrokerEvidence, fmt0};
+  // Early-entry validation: tests the MTA-UP philosophy directly.
+  // Candidate = ACC > DIST AND the stock is still in an early phase.
+  // The signal is frozen at T; only bars after T are used for the outcome.
+  function earlyPhase(a){
+    if(!a)return 'TRANSITION';
+    if(Number(a.chasePenalty||0)>=55)return 'LATE / CHASE';
+    if(a.pattern==='MARKUP / BREAKOUT'&&Number(a.volRatio)>=1.2)return 'EARLY BREAKOUT';
+    if(a.pattern==='ABSORPTION')return 'ABSORPTION';
+    if(a.pattern==='QUIET ACCUMULATION')return 'PRE-ACCUMULATION';
+    if(Number(a.trend)>=65)return 'MARKUP';
+    if(Number(a.brokerScore)>=60)return 'PRE-ACCUMULATION';
+    return 'TRANSITION';
+  }
+
+  function isEarlyCandidate(a){
+    const phase=earlyPhase(a);
+    return Number(a.acc)>Number(a.dist) &&
+      ['PRE-ACCUMULATION','ABSORPTION','EARLY BREAKOUT','TRANSITION'].includes(phase);
+  }
+
+  function earlyWalkForward(series, options = {}){
+    const horizon=Math.max(1,Number(options.horizon||5));
+    const lookback=Math.max(2,Number(options.lookback||20));
+    const buyCostPct=Math.max(0,Number(options.buyCostPct==null?DEFAULT_BUY_COST_PCT:options.buyCostPct));
+    const sellCostPct=Math.max(0,Number(options.sellCostPct==null?DEFAULT_SELL_COST_PCT:options.sellCostPct));
+    const rowsByStock=Array.isArray(series)?series:[];
+    const observations=[];
+
+    rowsByStock.forEach(s=>{
+      const r=(s.rows||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+      for(let i=lookback;i<r.length-horizon;){
+        const a=window.StockFlow.analyze(r.slice(0,i+1),lookback);
+        if(!a||!isEarlyCandidate(a)){i++;continue;}
+        const entry=num(r[i].close);
+        if(!entry){i++;continue;}
+        const path=r.slice(i+1,i+horizon+1);
+        if(path.length<horizon){i++;continue;}
+        const finalClose=num(path[path.length-1].close);
+        if(!finalClose){i++;continue;}
+
+        const rawReturn=pct(finalClose,entry);
+        const signedNet=netOutcome('BUY',entry,finalClose,buyCostPct,sellCostPct);
+        if(!Number.isFinite(signedNet)){i++;continue;}
+
+        const maePath=path.map(x=>{
+          const low=num(x.low);
+          return low==null?null:Math.max(0,-pct(low,entry));
+        }).filter(Number.isFinite);
+        const mfePath=path.map(x=>{
+          const high=num(x.high);
+          return high==null?null:Math.max(0,pct(high,entry));
+        }).filter(Number.isFinite);
+        if(!maePath.length||!mfePath.length){i++;continue;}
+
+        observations.push({
+          ticker:s.ticker||a.ticker||'',date:r[i].date,phase:earlyPhase(a),
+          acc:num(a.acc)??0,dist:num(a.dist)??0,score:num(a.score)??0,
+          confidence:num(a.confidence)??0,pattern:a.pattern||'NEUTRAL',
+          signedReturn:signedNet,grossReturn:rawReturn,buyCostPct,sellCostPct,
+          mae:Math.max(...maePath),mfe:Math.max(...mfePath)
+        });
+        // Match the existing non-overlapping forward-test convention.
+        i+=horizon;
+      }
+    });
+
+    return {
+      horizon,lookback,buyCostPct,sellCostPct,
+      rule:'ACC > DIST + PRE-ACCUMULATION / ABSORPTION / EARLY BREAKOUT / TRANSITION',
+      total:summarize(observations),
+      byPhase:['PRE-ACCUMULATION','ABSORPTION','EARLY BREAKOUT','TRANSITION'].map(phase=>({
+        phase,...summarize(observations.filter(x=>x.phase===phase))
+      })),
+      observations
+    };
+  }
+
+  function earlyMultiHorizon(series,horizons=[1,3,5,10,20],options={}){
+    return horizons.map(h=>earlyWalkForward(series,{...options,horizon:h}));
+  }
+
+  return {walkForward, multiHorizon, compareBrokerEvidence, earlyWalkForward, earlyMultiHorizon, isEarlyCandidate, earlyPhase, fmt0};
 })();
