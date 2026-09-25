@@ -78,15 +78,15 @@ window.StockFlowCalibration = (() => {
       const r = (s.rows || []).slice().sort((a,b) => new Date(a.date) - new Date(b.date));
       for (let i = lookback; i < r.length - horizon; i++) {
         // Signal is calculated only from bars through T. Nothing after T is
-        // passed into the engine before the signal is frozen.
+        // passed into the engine before the signal is frozen; execution occurs at T+1 open.
         const history = r.slice(0, i + 1);
         const a = window.StockFlow.analyze(history, lookback);
         if (!a || a.signal === 'NEUTRAL') continue;
-        const entry = num(r[i].close);
-        if (!entry) continue;
-
         const path = r.slice(i + 1, i + horizon + 1);
         if (path.length < horizon) continue;
+        // Signal is known at T close; execution occurs at the next bar open.
+        const entry = num(path[0].open);
+        if (!entry) continue;
         const finalClose = num(path[path.length - 1].close);
         if (!finalClose) continue;
 
@@ -206,10 +206,11 @@ window.StockFlowCalibration = (() => {
       for(let i=lookback;i<r.length-horizon;){
         const a=window.StockFlow.analyze(r.slice(0,i+1),lookback);
         if(!a||!isEarlyCandidate(a)){i++;continue;}
-        const entry=num(r[i].close);
-        if(!entry){i++;continue;}
         const path=r.slice(i+1,i+horizon+1);
         if(path.length<horizon){i++;continue;}
+        // Signal is known at T close; execution occurs at the next bar open.
+        const entry=num(path[0].open);
+        if(!entry){i++;continue;}
         const finalClose=num(path[path.length-1].close);
         if(!finalClose){i++;continue;}
 
