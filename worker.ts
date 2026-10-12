@@ -23,7 +23,7 @@ async function yahooUniverse(){
     if(!listing.ok)throw Error('GitHub dataset listing HTTP '+listing.status);
     const files=await listing.json() as any[];
     for(const file of files){
-      const m=String(file?.name||'').match(/^stock_data_(\\d{4}-\\d{2}-\\d{2})\\.csv$/);
+      const m=String(file?.name||'').match(/^stock_data_(\d{4}-\d{2}-\d{2})\\.csv$/);
       if(m)candidates.push(m[1]);
     }
     candidates.sort((a,b)=>b.localeCompare(a));
@@ -48,7 +48,7 @@ async function yahooUniverse(){
       });
       if(!res.ok)continue;
       const csv=await res.text();
-      const lines=csv.split(/\\r?\\n/).filter(Boolean);
+      const lines=csv.split(/\r?\n/).filter(Boolean);
       if(lines.length<2)continue;
       const h=lines[0].split(',').map(x=>x.replaceAll('"','').trim());
       const ti=h.findIndex(x=>x.toLowerCase()==='stock code');
@@ -154,7 +154,7 @@ async function fundamentalList(){
 const ACCESS_CODE_ENV='APP_ACCESS_CODE';
 const SESSION_SECRET_ENV='APP_SESSION_SECRET';
 function accessCodes(){
-  return [...new Set(String(envGet(ACCESS_CODE_ENV)||'').split(/[\\n,;]+/).map(x=>x.trim()).filter(Boolean))];
+  return [...new Set(String(envGet(ACCESS_CODE_ENV)||'').split(/[\n,;]+/).map(x=>x.trim()).filter(Boolean))];
 }
 const SESSION_TTL_MS=7*24*60*60*1000;
 const failedLogins=new Map<string,{count:number;resetAt:number}>();
