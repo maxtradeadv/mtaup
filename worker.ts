@@ -12,30 +12,64 @@ const ytickers=['BBCA','BBRI','BMRI','TLKM','ASII','BBNI','ICBP','INDF','ANTM','
 let yahooUniverseCache:{at:number;data:{ticker:string;name:string}[]}|null=null;
 async function yahooUniverse(){
   if(yahooUniverseCache&&Date.now()-yahooUniverseCache.at<3600000)return yahooUniverseCache.data;
-  const out:{ticker:string;name:string}[]=[];
-  const now=new Date();
-  for(let back=0;back<10;back++){
-    const d=new Date(now.getTime()-back*86400000);
-    const ds=d.toISOString().slice(0,10).replaceAll('-','');
+
+  // Discover actual dataset filenames instead of assuming a CSV exists within
+  // the last 10 calendar days (the repository may update less frequently).
+  const candidates:string[]=[];
+  try{
+    const listing=await fetch('https://api.github.com/repos/nofendian17/idx_dataset/git/trees/main?recursive=1',{
+      headers:{Accept:'application/vnd.github+json','User-Agent':'MTA-Stock-Flow-Scanner'}
+    });
+    if(!listing.ok)throw Error('GitHub dataset listing HTTP '+listing.status);
+    const tree=await listing.json() as any;
+    const files=Array.isArray(tree?.tree)?tree.tree:[];
+    for(const file of files){
+      const m=String(file?.path||'').match(/^data\/stock_data_(\d{4}-\d{2}-\d{2})\.csv$/);
+      if(m)candidates.push(m[1]);
+    }
+    candidates.sort((a,b)=>b.localeCompare(a));
+  }catch(e){
+    console.warn('[UNIVERSE] GitHub file listing unavailable; trying recent dates:',String(e));
+  }
+
+  // If the listing API is unavailable, retain a bounded date-based fallback.
+  if(!candidates.length){
+    const now=new Date();
+    for(let back=0;back<45;back++){
+      const d=new Date(now.getTime()-back*86400000);
+      candidates.push(d.toISOString().slice(0,10));
+    }
+  }
+
+  let best:{ticker:string;name:string}[]=[];
+  for(const iso of candidates.slice(0,15)){
     try{
-      const rows=await (await fetch('https://raw.githubusercontent.com/nofendian17/idx_dataset/main/data/stock_data_'+ds.slice(0,4)+'-'+ds.slice(4,6)+'-'+ds.slice(6,8)+'.csv',{headers:{Accept:'text/csv'}})).text();
-      const lines=rows.split(/\r?\n/).filter(Boolean);
+      const res=await fetch('https://raw.githubusercontent.com/nofendian17/idx_dataset/main/data/stock_data_'+iso+'.csv',{
+        headers:{Accept:'text/csv','User-Agent':'MTA-Stock-Flow-Scanner'}
+      });
+      if(!res.ok)continue;
+      const csv=await res.text();
+      const lines=csv.split(/\r?\n/).filter(Boolean);
       if(lines.length<2)continue;
       const h=lines[0].split(',').map(x=>x.replaceAll('"','').trim());
       const ti=h.findIndex(x=>x.toLowerCase()==='stock code');
       if(ti<0)continue;
+      const found=new Map<string,{ticker:string;name:string}>();
       for(const line of lines.slice(1)){
         const c=line.split(',').map(x=>x.replaceAll('"','').trim());
         const ticker=String(c[ti]||'').toUpperCase();
-        if(ticker)out.push({ticker,name:ticker});
+        if(/^[A-Z0-9]{2,6}$/.test(ticker))found.set(ticker,{ticker,name:ticker});
       }
-      if(out.length>=500)break;
-    }catch(e){console.warn('[UNIVERSE]',ds,String(e))}
+      if(found.size>best.length)best=[...found.values()];
+      // A normal full daily IDX dataset contains hundreds of symbols.
+      if(best.length>=300)break;
+    }catch(e){console.warn('[UNIVERSE]',iso,String(e))}
   }
-  const uniq=[...new Map(out.map(x=>[x.ticker,x])).values()];
-  if(!uniq.length)throw Error('Daily CSV returned no Indonesia equities');
-  yahooUniverseCache={at:Date.now(),data:uniq};
-  return uniq;
+
+  if(!best.length)throw Error('Daily CSV ticker universe unavailable: no stock_data_YYYY-MM-DD.csv could be parsed');
+  yahooUniverseCache={at:Date.now(),data:best};
+  console.log('[UNIVERSE] Loaded '+best.length+' tickers from idx_dataset CSV catalogue');
+  return best;
 }
 
 const json=(x:any,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'no-store'}});
@@ -121,7 +155,7 @@ async function fundamentalList(){
 const ACCESS_CODE_ENV='APP_ACCESS_CODE';
 const SESSION_SECRET_ENV='APP_SESSION_SECRET';
 function accessCodes(){
-  return [...new Set(String(envGet(ACCESS_CODE_ENV)||'').split(/[\\n,;]+/).map(x=>x.trim()).filter(Boolean))];
+  return [...new Set(String(envGet(ACCESS_CODE_ENV)||'').split(/[\n,;]+/).map(x=>x.trim()).filter(Boolean))];
 }
 const SESSION_TTL_MS=7*24*60*60*1000;
 const failedLogins=new Map<string,{count:number;resetAt:number}>();
