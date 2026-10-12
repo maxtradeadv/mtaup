@@ -17,13 +17,14 @@ async function yahooUniverse(){
   // the last 10 calendar days (the repository may update less frequently).
   const candidates:string[]=[];
   try{
-    const listing=await fetch('https://api.github.com/repos/nofendian17/idx_dataset/contents/data?ref=main',{
+    const listing=await fetch('https://api.github.com/repos/nofendian17/idx_dataset/git/trees/main?recursive=1',{
       headers:{Accept:'application/vnd.github+json','User-Agent':'MTA-Stock-Flow-Scanner'}
     });
     if(!listing.ok)throw Error('GitHub dataset listing HTTP '+listing.status);
-    const files=await listing.json() as any[];
+    const tree=await listing.json() as any;
+    const files=Array.isArray(tree?.tree)?tree.tree:[];
     for(const file of files){
-      const m=String(file?.name||'').match(/^stock_data_(\d{4}-\d{2}-\d{2})\\.csv$/);
+      const m=String(file?.path||'').match(/^data\/stock_data_(\d{4}-\d{2}-\d{2})\.csv$/);
       if(m)candidates.push(m[1]);
     }
     candidates.sort((a,b)=>b.localeCompare(a));
